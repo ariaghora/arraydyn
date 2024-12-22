@@ -25,43 +25,87 @@ _reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
 	}
 }
 
-// Modified reduction function with keepdims parameter
+// Perform a reduction operation along a specific axis. The reducer function is applied
+// pairwise to all elements along the given axis, with the specified initial value as
+// starting point. The operation preserves the array dimensions if keepdims is true.
 _reduce :: proc(
 	arr: ^Array_Dyn($T),
-	reducer: proc(_: T, _: T) -> T,
-	initial: T,
-	axis: int,
-	keepdims := false,
+	reducer: proc(_: T, _: T) -> T, // Function that combines two elements into one
+	initial: T, // Starting value for reduction (e.g., 0 for sum, 1 for product)
+	axis: int, // Which dimension to reduce along
+	keepdims := false, // Whether to preserve reduced dimension as size 1
 ) -> ^Array_Dyn(T) {
+	// Get shape for result array, handling keepdims case.
+	// Deferred delete needed since _array_alloc copies it
 	out_shape := _reduction_shape(arr.shape, axis, keepdims)
 	defer delete(out_shape)
 	result := _array_alloc(T, out_shape)
 
-	// Initialize result
+	// Initialize all elements to initial value since reducer will use these as
+	// starting points
 	for i := 0; i < len(result.data); i += 1 {
 		result.data[i] = initial
 	}
 
-	// Rest of the reduction logic remains the same
+	// Calculate the total size of all dimensions before the reduction axis.
+	// For example, if we have array shape [2,3,4] and axis=1:
+	// - Dimensions before axis are [2], so outer_size = 2
+	// - This determines how many complete "slices" we need to process
 	outer_size: uint = 1
 	for i := 0; i < axis; i += 1 {
 		outer_size *= arr.shape[i]
 	}
 
+	// Calculate the total size of all dimensions after the reduction axis.
+	// For example, if we have array shape [2,3,4] and axis=1:
+	// - Dimensions after axis are [4], so inner_size = 4
+	// - This determines how many elements we need to process within each "slice"
+	// - With outer_size=2 and axis_size=3, we process:
+	//   * For outer=0: process 4 elements across each of the 3 positions in axis
+	//   * For outer=1: repeat for the second slice
 	inner_size: uint = 1
 	for i := axis + 1; i < len(arr.shape); i += 1 {
 		inner_size *= arr.shape[i]
 	}
 
+	// Size of dimension being reduced - we'll iterate through this in innermost loop
 	axis_size := arr.shape[axis]
 
-	// Perform reduction
-	for outer := uint(0); outer < outer_size; outer += 1 {
-		for inner := uint(0); inner < inner_size; inner += 1 {
-			out_idx := outer * inner_size + inner
-			for a := uint(0); a < axis_size; a += 1 {
-				idx := outer * (axis_size * inner_size) + a * inner_size + inner
-				result.data[out_idx] = reducer(result.data[out_idx], arr.data[idx])
+	// Split into two paths for performance: contiguous arrays can use direct indexing,
+	// while non-contiguous need stride calculations. This optimization matters because
+	// most arrays in practice are contiguous.
+	if arr.contiguous {
+		// Fast path: direct indexing for contiguous memory layout. The nested loops
+		// process: outer dims -> inner dims -> reduction axis.
+		for outer := uint(0); outer < outer_size; outer += 1 {
+			for inner := uint(0); inner < inner_size; inner += 1 {
+				// Output index maps to reduced shape by skipping reduction axis.
+				// Each out_idx accumulates values from axis_size elements.
+				out_idx := outer * inner_size + inner
+				for a := uint(0); a < axis_size; a += 1 {
+					// Input index formula expands position to full dimensionality.
+					// The term (a * inner_size) strides through reduction axis while
+					// keeping inner/outer coords fixed.
+					idx := outer * (axis_size * inner_size) + a * inner_size + inner
+					result.data[out_idx] = reducer(result.data[out_idx], arr.data[idx])
+				}
+			}
+		}
+	} else {
+		// Slow path: handle non-contiguous arrays (e.g., views, transposed).
+		// Same loop structure but must compute true memory position using strides.
+		// This is slower but necessary for correctness with arbitrary layouts.
+		for outer := uint(0); outer < outer_size; outer += 1 {
+			for inner := uint(0); inner < inner_size; inner += 1 {
+				out_idx := outer * inner_size + inner
+				for a := uint(0); a < axis_size; a += 1 {
+					// First compute logical flat index, then map to actual memory
+					// position using strides. This two-step process handles any
+					// possible memory layout.
+					flat_idx := outer * (axis_size * inner_size) + a * inner_size + inner
+					src_idx := _compute_strided_index(arr.shape, arr.strides, flat_idx)
+					result.data[out_idx] = reducer(result.data[out_idx], arr.data[src_idx])
+				}
 			}
 		}
 	}
@@ -69,7 +113,6 @@ _reduce :: proc(
 	return result
 }
 
-// Updated convenience functions
 sum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
 	return _reduce(arr, proc(x, y: T) -> T {return x + y}, T(0), axis, keepdims)
 }
