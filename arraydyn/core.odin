@@ -114,7 +114,7 @@ ones :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
 
 // Create a new array with given data and shape. This function performs a copy
 // of the input data, so the original array is not referenced in the new one.
-new_with_init :: proc($T: typeid, init: []T, shape: []uint) -> (res: ^Array_Dyn(T)) {
+new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	res = _array_alloc(T, shape)
 	if len(res.data) != len(init) {
 		panic("Input data length must match array size computed from shape")
@@ -123,7 +123,6 @@ new_with_init :: proc($T: typeid, init: []T, shape: []uint) -> (res: ^Array_Dyn(
 	copy(res.data, init)
 	return res
 }
-
 
 array_free :: proc(arr: ^Array_Dyn($T)) {
 	delete(arr.data)

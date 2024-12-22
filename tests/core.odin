@@ -14,7 +14,7 @@ test_init :: proc(t: ^testing.T) {
 import "core:fmt"
 @(test)
 test_strided_data_extract :: proc(t: ^testing.T) {
-	arr := ar.new_with_init(i32, []i32{1, 2, 3, 4}, {2, 2})
+	arr := ar.new_with_init([]i32{1, 2, 3, 4}, {2, 2})
 	defer ar.array_free(arr)
 	arr.shape[0], arr.shape[1] = arr.shape[1], arr.shape[0]
 	arr.strides[0], arr.strides[1] = arr.strides[1], arr.strides[0]
