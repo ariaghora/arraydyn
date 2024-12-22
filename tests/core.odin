@@ -11,19 +11,18 @@ test_init :: proc(t: ^testing.T) {
 	defer ar.array_free(m_ones)
 }
 
+import "core:fmt"
 @(test)
-test_transpose :: proc(t: ^testing.T) {
-	arr := ar.new_with_init(f32, []f32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+test_strided_data_extract :: proc(t: ^testing.T) {
+	arr := ar.new_with_init(i32, []i32{1, 2, 3, 4}, {2, 2})
 	defer ar.array_free(arr)
-
-	transposed := ar.tranpose(arr)
-	defer ar.array_free(transposed)
-
-	expected := []f32{1, 4, 2, 5, 3, 6}
-
-	testing.expect(t, len(transposed.data) == len(expected))
-	for item, i in soa_zip(x = transposed.data, y = expected) {
-		testing.expect_value(t, item.x, item.y)
-	}
-
+	arr.shape[0], arr.shape[1] = arr.shape[1], arr.shape[0]
+	arr.strides[0], arr.strides[1] = arr.strides[1], arr.strides[0]
+	arr.contiguous = false
+	transposed := ar._get_strided_data(arr)
+	defer delete(transposed)
+	testing.expect_value(t, transposed[0], 1)
+	testing.expect_value(t, transposed[1], 3)
+	testing.expect_value(t, transposed[2], 2)
+	testing.expect_value(t, transposed[3], 4)
 }
