@@ -124,6 +124,91 @@ new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	return res
 }
 
+// Pretty print array with numpy-like formatting
+import "core:strings"
+print :: proc(arr: ^Array_Dyn($T)) {
+	if len(arr.shape) == 0 {
+		fmt.print("Array()")
+		return
+	}
+
+	builder := strings.builder_make()
+	defer strings.builder_destroy(&builder)
+
+	strings.write_string(
+		&builder,
+		fmt.tprintf("Array(type=%v,shape=%v)\n", typeid_of(T), arr.shape),
+	)
+	indices := make([]uint, len(arr.shape))
+	defer delete(indices)
+	_print_recursive(arr, arr.shape, arr.strides, 0, indices, 1, &builder)
+	strings.write_string(&builder, "\n")
+
+	fmt.println(strings.to_string(builder))
+}
+
+_print_recursive :: proc(
+	arr: ^Array_Dyn($T),
+	shape: []uint,
+	strides: []uint,
+	depth: int,
+	indices: []uint,
+	indent: int,
+	builder: ^strings.Builder,
+) {
+	if depth == len(shape) - 1 {
+		// For the innermost dimension
+		strings.write_byte(builder, '[')
+
+		for i: uint = 0; i < shape[depth]; i += 1 {
+			indices[depth] = i
+			index := _compute_linear_index(indices, strides)
+
+			if i > 0 {
+				strings.write_byte(builder, ' ')
+			}
+
+			value := arr.data[index]
+			switch type_info_of(type_of(value)) {
+			case type_info_of(f32):
+				strings.write_string(builder, fmt.tprintf("%.6f", value))
+			case type_info_of(f64):
+				strings.write_string(builder, fmt.tprintf("%.6f", value))
+			case:
+				strings.write_string(builder, fmt.tprintf("% 6v", value))
+			}
+		}
+		strings.write_byte(builder, ']')
+	} else {
+		strings.write_byte(builder, '[')
+
+		for i: uint = 0; i < shape[depth]; i += 1 {
+			if i > 0 {
+				strings.write_string(builder, "\n")
+				for j := 0; j < depth + 1; j += 1 {
+					strings.write_string(builder, " ")
+				}
+			}
+
+			indices[depth] = i
+			_print_recursive(arr, shape, strides, depth + 1, indices, indent + 1, builder)
+
+			if i < shape[depth] - 1 {
+				strings.write_byte(builder, ',')
+			}
+		}
+		strings.write_string(builder, "]")
+	}
+}
+
+_compute_linear_index :: proc(indices: []uint, strides: []uint) -> uint {
+	index: uint = 0
+	for i := 0; i < len(indices); i += 1 {
+		index += indices[i] * strides[i]
+	}
+	return index
+}
+
 array_free :: proc(arr: ^Array_Dyn($T)) {
 	delete(arr.data)
 	delete(arr.shape)
