@@ -3,6 +3,7 @@ package arraydyn
 import "core:fmt"
 import "core:mem"
 import "core:slice"
+import "core:strings"
 
 // This structure implements a high level multidimensional array container using a
 // linear array of data internally. The array is parametrized for any data type
@@ -71,7 +72,7 @@ _get_strided_data :: proc(arr: ^Array_Dyn($T), shape: []uint = nil, strides: []u
 	size := _shape_to_size(target_shape)
 	data := make([]T, size)
 	i: uint
-	for i = 0; i < size; i += 1 {
+	for i in 0 ..< size {
 		i_strided := _compute_strided_index(target_shape, target_strides, i)
 		data[i] = arr.data[i_strided]
 	}
@@ -125,7 +126,6 @@ new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Array_Dyn(T)) {
 }
 
 // Pretty print array with numpy-like formatting
-import "core:strings"
 print :: proc(arr: ^Array_Dyn($T)) {
 	if len(arr.shape) == 0 {
 		fmt.print("Array()")
@@ -160,7 +160,7 @@ _print_recursive :: proc(
 		// For the innermost dimension
 		strings.write_byte(builder, '[')
 
-		for i: uint = 0; i < shape[depth]; i += 1 {
+		for i in 0 ..< shape[depth] {
 			indices[depth] = i
 			index := _compute_linear_index(indices, strides)
 
@@ -182,7 +182,7 @@ _print_recursive :: proc(
 	} else {
 		strings.write_byte(builder, '[')
 
-		for i: uint = 0; i < shape[depth]; i += 1 {
+		for i in 0 ..< shape[depth] {
 			if i > 0 {
 				strings.write_string(builder, "\n")
 				for j := 0; j < depth + 1; j += 1 {
@@ -203,7 +203,7 @@ _print_recursive :: proc(
 
 _compute_linear_index :: proc(indices: []uint, strides: []uint) -> uint {
 	index: uint = 0
-	for i := 0; i < len(indices); i += 1 {
+	for i in 0 ..< len(indices) {
 		index += indices[i] * strides[i]
 	}
 	return index

@@ -30,7 +30,7 @@ _array_get_4d :: #force_inline proc(arr: ^Array_Dyn($T), i0, i1, i2, i3: uint) -
 
 _array_get_nd :: #force_inline proc(arr: ^Array_Dyn($T), coord: []uint) -> T {
 	index: uint = 0
-	for i := 0; i < len(coord); i += 1 {
+	for i in 0 ..< len(coord) {
 		index += coord[i] * arr.strides[i]
 	}
 	return arr.data[index]
@@ -64,7 +64,7 @@ _compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) 
 		coord[0] = remaining
 
 		offset: uint = 0
-		for i := 0; i < len(coord); i += 1 {
+		for i in 0 ..< len(coord) {
 			offset += coord[i] * strides[i]
 		}
 		return offset
@@ -76,7 +76,7 @@ _is_broadcastable :: proc(shape_a, shape_b: []uint) -> bool {
 	rank_b := len(shape_b)
 	max_rank := max(rank_a, rank_b)
 
-	for i := 0; i < max_rank; i += 1 {
+	for i in 0 ..< max_rank {
 		a_idx := rank_a - 1 - i
 		b_idx := rank_b - 1 - i
 
@@ -112,7 +112,7 @@ _get_broadcast_shape_and_strides :: proc(
 	strides_b = make([]uint, max_rank)
 
 	// Calculate broadcast dimensions and strides
-	for i := 0; i < max_rank; i += 1 {
+	for i in 0 ..< max_rank {
 		dim_a := uint(1)
 		stride_a := uint(0)
 		if i < rank_a {
@@ -174,7 +174,7 @@ _array_binary_op :: #force_inline proc(
 	arr_b := _get_strided_data(b, broadcast_shape, strides_b)
 	defer delete(arr_b)
 
-	for i := uint(0); i < size; i += 1 {
+	for i in 0 ..< size {
 		res.data[i] = fn(arr_a[i], arr_b[i])
 	}
 	return res
