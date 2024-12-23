@@ -54,19 +54,12 @@ _compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) 
 		return i0 * strides[0] + i1 * strides[1] + i2 * strides[2]
 	case:
 		// N-dimensional case
-		coord := make([]uint, len(shape))
-		defer delete(coord)
-
-		remaining := idx
-		for i := len(shape) - 1; i > 0; i -= 1 {
-			coord[i] = remaining % shape[i]
-			remaining /= shape[i]
-		}
-		coord[0] = remaining
-
 		offset: uint = 0
-		for i in 0 ..< len(coord) {
-			offset += coord[i] * strides[i]
+		remaining := idx
+		for i := len(shape) - 1; i >= 0; i -= 1 {
+			coord := remaining % shape[i]
+			offset += coord * strides[i]
+			remaining /= shape[i]
 		}
 		return offset
 	}
