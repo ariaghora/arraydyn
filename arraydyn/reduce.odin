@@ -1,5 +1,7 @@
 package arraydyn
 
+import "core:math"
+
 _reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
 	if axis < 0 || axis >= len(shape) {
 		panic("Axis out of bounds")
@@ -115,6 +117,15 @@ _reduce :: proc(
 
 sum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
 	return _reduce(arr, proc(x, y: T) -> T {return x + y}, T(0), axis, keepdims)
+}
+
+// NOTE(Aria): We chose name `maximum` and `minimum` to avoid collision with Odin's builtin
+maximum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+	return _reduce(arr, proc(x, y: T) -> T {return max(x, y)}, T(0), axis, keepdims)
+}
+
+minimum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+	return _reduce(arr, proc(x, y: T) -> T {return min(x, y)}, T(0), axis, keepdims)
 }
 
 mean :: proc(
