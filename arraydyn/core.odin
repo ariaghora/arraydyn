@@ -12,15 +12,20 @@ import "core:strings"
 // single slice. A stride array is used to map N-dimensional coordinates to linear
 // indices in the data array. The contiguous flag indicates if the array is stored
 // in memory without gaps.
+@(private = "package")
 Array_Dyn :: struct($T: typeid) {
-	data:          []T,
+	data:       []T,
+	shape:      []uint,
+	strides:    []uint,
+	contiguous: bool,
+}
+
+Tensor :: struct($T: typeid) {
+	using arrdata: ^Array_Dyn(T),
 	grad:          ^Array_Dyn(T),
-	deps:          [dynamic]^Array_Dyn(T),
-	shape:         []uint,
-	strides:       []uint,
-	contiguous:    bool,
+	deps:          [dynamic]^Tensor(T),
 	requires_grad: bool,
-	backward_fn:   proc(_, _: ^Array_Dyn(T)),
+	backward_fn:   proc(_: ^Tensor(T), _: ^Array_Dyn(T)),
 }
 
 // Compute total size of an array by multiplying dimensions in shape
@@ -128,7 +133,7 @@ zeros :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
 
 // Create a new array with given data and shape. This function performs a copy
 // of the input data, so the original array is not referenced in the new one.
-new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Array_Dyn(T)) {
+_new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	res = _array_alloc(T, shape)
 	if len(res.data) != len(init) {
 		panic("Input data length must match array size computed from shape")
@@ -137,6 +142,19 @@ new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	copy(res.data, init)
 	return res
 }
+
+new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Tensor(T)) {
+	res = new(Tensor(T))
+	res.arrdata = _new_with_init(init, shape)
+	return res
+}
+
+_tensor_from_array :: proc(arr: ^Array_Dyn($T)) -> (res: ^Tensor(T)) {
+	res = new(Tensor(T))
+	res.arrdata = arr
+	return res
+}
+
 
 // Pretty print array with numpy-like formatting
 print :: proc(arr: ^Array_Dyn($T)) {
@@ -226,22 +244,23 @@ array_free :: proc(arr: ^Array_Dyn($T), remaining: ..^Array_Dyn(T)) {
 	delete(arr.data)
 	delete(arr.shape)
 	delete(arr.strides)
-	delete(arr.deps)
-	if arr.requires_grad {
-		array_free(arr.grad)
-	}
 	free(arr)
 
 	for rem in remaining {
 		delete(rem.data)
 		delete(rem.shape)
 		delete(rem.strides)
-		delete(rem.deps)
-		if rem.requires_grad {
-			array_free(rem.grad)
-		}
 		free(rem)
 	}
+}
+
+tensor_free :: proc(t: ^Tensor($T)) {
+	array_free(t.arrdata)
+	if t.requires_grad {
+		array_free(t.grad)
+	}
+	delete(t.deps)
+	free(t)
 }
 
 array_get :: proc {
@@ -307,19 +326,19 @@ _compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) 
 	}
 }
 
-set_requires_grad :: proc(arr: ^Array_Dyn($T), val: bool) {
+set_requires_grad :: proc(t: ^Tensor($T), val: bool) {
 	if val {
 		// if val is true and  arr already requires grad, nothing to do
-		if arr.requires_grad {return}
+		if t.requires_grad {return}
 
 		// set grads to 0 with shape == arr.shape
-		arr.grad = zeros(T, arr.shape)
-		arr.requires_grad = true
+		t.grad = zeros(T, t.shape)
+		t.requires_grad = true
 	} else {
 		// if arr originally requires grad, free it
-		if arr.requires_grad {
-			array_free(arr.grad)
+		if t.requires_grad {
+			array_free(t.grad)
 		}
-		arr.requires_grad = false
+		t.requires_grad = false
 	}
 }

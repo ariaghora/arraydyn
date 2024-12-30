@@ -8,7 +8,7 @@ import "core:testing"
 test_sum :: proc(t: ^testing.T) {
 	// Test 1: Simple 2x3 array, sum along axis 0 (columns)
 	{
-		arr := ar.new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		arr := ar._new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
 		defer ar.array_free(arr)
 
 		sum0 := ar.sum(arr, 0) // Should be [5,7,9]
@@ -23,7 +23,7 @@ test_sum :: proc(t: ^testing.T) {
 
 	// Test 2: Same array, sum along axis 1 (rows)
 	{
-		arr := ar.new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		arr := ar._new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
 		defer ar.array_free(arr)
 
 		sum1 := ar.sum(arr, 1) // Should be [6,15]
@@ -38,7 +38,7 @@ test_sum :: proc(t: ^testing.T) {
 
 	// Test 3: With keepdims=true
 	{
-		arr := ar.new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		arr := ar._new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
 		defer ar.array_free(arr)
 
 		sum0 := ar.sum(arr, 0, keepdims = true) // Should be [[5,7,9]]
@@ -55,7 +55,7 @@ test_sum :: proc(t: ^testing.T) {
 	// Test 4: 3D array test
 	{
 		// Create 2x2x2 array
-		arr := ar.new_with_init([]i32{1, 2, 3, 4, 5, 6, 7, 8}, []uint{2, 2, 2})
+		arr := ar._new_with_init([]i32{1, 2, 3, 4, 5, 6, 7, 8}, []uint{2, 2, 2})
 		defer ar.array_free(arr)
 
 		sum1 := ar.sum(arr, 1) // Sum middle dimension
@@ -72,7 +72,7 @@ test_sum :: proc(t: ^testing.T) {
 	// Test 5: Non-contiguous (transposed) array test
 	{
 		// Create 2x3 array but transpose it by swapping strides
-		arr := ar.new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		arr := ar._new_with_init([]i32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
 		defer ar.array_free(arr)
 		arr.contiguous = false
 		arr.shape[0], arr.shape[1] = arr.shape[1], arr.shape[0]
