@@ -153,6 +153,8 @@ _tensor_binop :: proc(
 	backward_fn: proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)),
 ) -> ^Tensor(T) {
 	res := _tensor_from_array(new_arrdata)
+	lhs.ref_count += 1
+	rhs.ref_count += 1
 	append(&res.deps, lhs, rhs)
 	set_requires_grad(res, lhs.requires_grad || rhs.requires_grad)
 	res.backward_fn = backward_fn

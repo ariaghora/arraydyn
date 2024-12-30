@@ -20,12 +20,17 @@ Array_Dyn :: struct($T: typeid) {
 	contiguous: bool,
 }
 
+// Tensor represents a multidimensional array with automatic differentiation capabilities.
+// It wraps an Array_Dyn for data storage and adds gradient computation functionality.
+// The struct tracks computational dependencies through a dynamic array of dependencies
+// and supports automatic gradient propagation via a backward function.
 Tensor :: struct($T: typeid) {
 	using arrdata: ^Array_Dyn(T),
 	grad:          ^Array_Dyn(T),
 	deps:          [dynamic]^Tensor(T),
 	requires_grad: bool,
 	backward_fn:   proc(_: ^Tensor(T), _: ^Array_Dyn(T)),
+	ref_count:     uint,
 }
 
 // Compute total size of an array by multiplying dimensions in shape
@@ -145,12 +150,14 @@ _new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Array_Dyn(T)) {
 
 new_with_init :: proc(init: []$T, shape: []uint) -> (res: ^Tensor(T)) {
 	res = new(Tensor(T))
+	res.ref_count = 1
 	res.arrdata = _new_with_init(init, shape)
 	return res
 }
 
 _tensor_from_array :: proc(arr: ^Array_Dyn($T)) -> (res: ^Tensor(T)) {
 	res = new(Tensor(T))
+	res.ref_count = 1
 	res.arrdata = arr
 	return res
 }
@@ -254,13 +261,23 @@ array_free :: proc(arr: ^Array_Dyn($T), remaining: ..^Array_Dyn(T)) {
 	}
 }
 
-tensor_free :: proc(t: ^Tensor($T)) {
-	array_free(t.arrdata)
-	if t.requires_grad {
-		array_free(t.grad)
+tensor_release :: proc(t: ^Tensor($T)) {
+	if t == nil do return
+
+	t.ref_count -= 1
+	if t.ref_count == 0 {
+		// Actually free resources
+		array_free(t.arrdata)
+		if t.requires_grad {
+			array_free(t.grad)
+		}
+		// Decrease ref count for dependencies
+		for dep in t.deps {
+			tensor_release(dep)
+		}
+		delete(t.deps)
+		free(t)
 	}
-	delete(t.deps)
-	free(t)
 }
 
 array_get :: proc {

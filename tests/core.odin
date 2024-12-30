@@ -12,10 +12,10 @@ test_init :: proc(t: ^testing.T) {
 	defer ar.array_free(m_ones)
 
 	empty_t := ar.new_with_init([]i32{1, 2, 3}, {3})
-	ar.tensor_free(empty_t)
+	ar.tensor_release(empty_t)
 
 	t_ones := ar._tensor_from_array(ar.ones(f16, {2, 3}))
-	defer ar.tensor_free(t_ones)
+	defer ar.tensor_release(t_ones)
 	testing.expect(t, slice.equal(t_ones.shape, []uint{2, 3}))
 }
 
