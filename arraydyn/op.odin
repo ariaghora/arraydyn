@@ -222,7 +222,7 @@ add :: proc {
 }
 
 add_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
-	return _array_binary_op(a = a, b = b, fn = #force_inline proc(x, y: T) -> T {return x + y})
+	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x + y})
 }
 
 
