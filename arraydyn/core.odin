@@ -221,7 +221,7 @@ _compute_linear_index :: proc(indices: []uint, strides: []uint) -> uint {
 	return index
 }
 
-array_free :: proc(arr: ^Array_Dyn($T)) {
+array_free :: proc(arr: ^Array_Dyn($T), remaining: ..^Array_Dyn(T)) {
 	delete(arr.data)
 	delete(arr.shape)
 	delete(arr.strides)
@@ -230,6 +230,17 @@ array_free :: proc(arr: ^Array_Dyn($T)) {
 		array_free(arr.grad)
 	}
 	free(arr)
+
+	for rem in remaining {
+		delete(rem.data)
+		delete(rem.shape)
+		delete(rem.strides)
+		delete(rem.deps)
+		if rem.requires_grad {
+			array_free(rem.grad)
+		}
+		free(rem)
+	}
 }
 
 array_get :: proc {
