@@ -127,7 +127,7 @@ _array_binary_op :: #force_inline proc(
 	}
 
 	// Handle dependencies
-	res.requires_grad = a.requires_grad || b.requires_grad
+	set_requires_grad(res, a.requires_grad || b.requires_grad)
 	append(&res.deps, a, b)
 
 	return res

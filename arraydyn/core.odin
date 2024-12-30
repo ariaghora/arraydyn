@@ -14,7 +14,7 @@ import "core:strings"
 // in memory without gaps.
 Array_Dyn :: struct($T: typeid) {
 	data:          []T,
-	grad:          []T,
+	grad:          ^Array_Dyn(T),
 	deps:          [dynamic]^Array_Dyn(T),
 	shape:         []uint,
 	strides:       []uint,
@@ -113,6 +113,15 @@ data_len :: proc(arr: ^Array_Dyn) -> uint {
 ones :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	res = _array_alloc(T, shape)
 	for _, i in res.data {res.data[i] = T(1)}
+	return res
+}
+
+// Create a new array filled with zeros. Arrays are initialized for all data types by casting
+// 0 to the target type, so for example this works with floating point data types, integers
+// and even complex data types like bool or void types.
+zeros :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
+	res = _array_alloc(T, shape)
+	for _, i in res.data {res.data[i] = T(0)}
 	return res
 }
 
@@ -217,6 +226,9 @@ array_free :: proc(arr: ^Array_Dyn($T)) {
 	delete(arr.shape)
 	delete(arr.strides)
 	delete(arr.deps)
+	if arr.requires_grad {
+		array_free(arr.grad)
+	}
 	free(arr)
 }
 
@@ -280,5 +292,22 @@ _compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) 
 			remaining /= shape[i]
 		}
 		return offset
+	}
+}
+
+set_requires_grad :: proc(arr: ^Array_Dyn($T), val: bool) {
+	if val {
+		// if val is true and  arr already requires grad, nothing to do
+		if arr.requires_grad {return}
+
+		// set grads to 0 with shape == arr.shape
+		arr.grad = zeros(T, arr.shape)
+		arr.requires_grad = true
+	} else {
+		// if arr originally requires grad, free it
+		if arr.requires_grad {
+			array_free(arr.grad)
+		}
+		arr.requires_grad = false
 	}
 }
