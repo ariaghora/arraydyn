@@ -13,10 +13,13 @@ import "core:strings"
 // indices in the data array. The contiguous flag indicates if the array is stored
 // in memory without gaps.
 Array_Dyn :: struct($T: typeid) {
-	data:       []T,
-	shape:      []uint,
-	strides:    []uint,
-	contiguous: bool,
+	data:          []T,
+	grad:          []T,
+	deps:          [dynamic]^Array_Dyn(T),
+	shape:         []uint,
+	strides:       []uint,
+	contiguous:    bool,
+	requires_grad: bool,
 }
 
 // Compute total size of an array by multiplying dimensions in shape
@@ -213,6 +216,7 @@ array_free :: proc(arr: ^Array_Dyn($T)) {
 	delete(arr.data)
 	delete(arr.shape)
 	delete(arr.strides)
+	delete(arr.deps)
 	free(arr)
 }
 

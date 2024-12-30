@@ -1,6 +1,7 @@
 package arraydyn
 
 import "core:math"
+import "core:slice"
 
 _is_broadcastable :: proc(shape_a, shape_b: []uint) -> bool {
 	rank_a := len(shape_a)
@@ -124,6 +125,11 @@ _array_binary_op :: #force_inline proc(
 	for i in 0 ..< size {
 		res.data[i] = fn(arr_a[i], arr_b[i])
 	}
+
+	// Handle dependencies
+	res.requires_grad = a.requires_grad || b.requires_grad
+	append(&res.deps, a, b)
+
 	return res
 }
 
