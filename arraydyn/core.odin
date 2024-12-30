@@ -215,3 +215,66 @@ array_free :: proc(arr: ^Array_Dyn($T)) {
 	delete(arr.strides)
 	free(arr)
 }
+
+array_get :: proc {
+	_array_get_2d,
+	_array_get_3d,
+	_array_get_4d,
+	_array_get_nd,
+}
+
+_array_get_1d :: #force_inline proc(arr: ^Array_Dyn($T), i0: uint) -> T {
+	s0 := arr.strides[0]
+	return arr.data[i0 * s0]
+}
+
+_array_get_2d :: #force_inline proc(arr: ^Array_Dyn($T), row, col: uint) -> T {
+	s0, s1 := arr.strides[0], arr.strides[1]
+	return arr.data[row * s0 + col * s1]
+}
+
+_array_get_3d :: #force_inline proc(arr: ^Array_Dyn($T), i0, i1, i2: uint) -> T {
+	s0, s1, s2 := arr.strides[0], arr.strides[1], arr.strides[2]
+	return arr.data[i0 * s0 + i1 * s1 + i2 * s2]
+}
+
+_array_get_4d :: #force_inline proc(arr: ^Array_Dyn($T), i0, i1, i2, i3: uint) -> T {
+	s0, s1, s2, s3 := arr.strides[0], arr.strides[1], arr.strides[2], arr.strides[3]
+	return arr.data[i0 * s0 + i1 * s1 + i2 * s2 + i3 * s3]
+}
+
+_array_get_nd :: #force_inline proc(arr: ^Array_Dyn($T), coord: []uint) -> T {
+	index: uint = 0
+	for i in 0 ..< len(coord) {
+		index += coord[i] * arr.strides[i]
+	}
+	return arr.data[index]
+}
+
+
+_compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) -> uint {
+	switch len(shape) {
+	case 1:
+		return idx * strides[0]
+	case 2:
+		i1 := idx % shape[1]
+		i0 := idx / shape[1]
+		return i0 * strides[0] + i1 * strides[1]
+	case 3:
+		i2 := idx % shape[2]
+		tmp := idx / shape[2]
+		i1 := tmp % shape[1]
+		i0 := tmp / shape[1]
+		return i0 * strides[0] + i1 * strides[1] + i2 * strides[2]
+	case:
+		// N-dimensional case
+		offset: uint = 0
+		remaining := idx
+		for i := len(shape) - 1; i >= 0; i -= 1 {
+			coord := remaining % shape[i]
+			offset += coord * strides[i]
+			remaining /= shape[i]
+		}
+		return offset
+	}
+}
