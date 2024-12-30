@@ -157,7 +157,7 @@ _tensor_from_array :: proc(arr: ^Array_Dyn($T)) -> (res: ^Tensor(T)) {
 
 
 // Pretty print array with numpy-like formatting
-print :: proc(arr: ^Array_Dyn($T)) {
+print :: proc(_: ^Array_Dyn($T)) {
 	if len(arr.shape) == 0 {
 		fmt.print("Array()")
 		return
