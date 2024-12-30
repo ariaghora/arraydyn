@@ -151,6 +151,7 @@ _tensor_binop :: proc(
 	lhs, rhs: ^Tensor($T),
 	new_arrdata: ^Array_Dyn(T),
 	backward_fn: proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)),
+	backward_fn_name: string,
 ) -> ^Tensor(T) {
 	res := _tensor_from_array(new_arrdata)
 	lhs.ref_count += 1
@@ -158,6 +159,7 @@ _tensor_binop :: proc(
 	append(&res.deps, lhs, rhs)
 	set_requires_grad(res, lhs.requires_grad || rhs.requires_grad)
 	res.backward_fn = backward_fn
+	res.backward_fn_name = backward_fn_name
 	return res
 }
 
@@ -233,6 +235,7 @@ add_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 		lhs = a,
 		rhs = b,
 		new_arrdata = add_a(a.arrdata, b.arrdata),
+		backward_fn_name = "add_backward",
 		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
 			a, b := tensor.deps[0], tensor.deps[1]
 

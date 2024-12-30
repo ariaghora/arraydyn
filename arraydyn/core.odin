@@ -25,12 +25,13 @@ Array_Dyn :: struct($T: typeid) {
 // The struct tracks computational dependencies through a dynamic array of dependencies
 // and supports automatic gradient propagation via a backward function.
 Tensor :: struct($T: typeid) {
-	using arrdata: ^Array_Dyn(T),
-	grad:          ^Array_Dyn(T),
-	deps:          [dynamic]^Tensor(T),
-	requires_grad: bool,
-	backward_fn:   proc(_: ^Tensor(T), _: ^Array_Dyn(T)),
-	ref_count:     uint,
+	using arrdata:    ^Array_Dyn(T),
+	grad:             ^Array_Dyn(T),
+	deps:             [dynamic]^Tensor(T),
+	requires_grad:    bool,
+	backward_fn:      proc(_: ^Tensor(T), _: ^Array_Dyn(T)),
+	backward_fn_name: string,
+	ref_count:        uint,
 }
 
 // Compute total size of an array by multiplying dimensions in shape
@@ -164,19 +165,31 @@ _tensor_from_array :: proc(arr: ^Array_Dyn($T)) -> (res: ^Tensor(T)) {
 
 
 // Pretty print array with numpy-like formatting
-print :: proc(_: ^Array_Dyn($T)) {
+print :: proc {
+	print_arr,
+	print_tensor,
+}
+
+print_tensor :: proc(t: ^Tensor($T)) {
+	print_arr(t.arrdata, prefix = "Tensor", backward_fn_name = t.backward_fn_name)
+}
+
+print_arr :: proc(arr: ^Array_Dyn($T), prefix: string = "Array", backward_fn_name: string = "") {
 	if len(arr.shape) == 0 {
-		fmt.print("Array()")
+		fmt.printf("%s()", prefix)
 		return
 	}
 
 	builder := strings.builder_make()
 	defer strings.builder_destroy(&builder)
 
+	backward_fn_str :=
+		len(backward_fn_name) > 0 ? fmt.tprintf(", backward_fn=%s", backward_fn_name) : ""
 	strings.write_string(
 		&builder,
-		fmt.tprintf("Array(type=%v,shape=%v)\n", typeid_of(T), arr.shape),
+		fmt.tprintf("%s(type=%v, shape=%v%s)\n", prefix, typeid_of(T), arr.shape, backward_fn_str),
 	)
+
 	indices := make([]uint, len(arr.shape))
 	defer delete(indices)
 	_print_recursive(arr, arr.shape, arr.strides, 0, indices, 1, &builder)
