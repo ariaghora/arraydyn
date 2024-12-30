@@ -20,6 +20,7 @@ Array_Dyn :: struct($T: typeid) {
 	strides:       []uint,
 	contiguous:    bool,
 	requires_grad: bool,
+	backward_fn:   proc(_, _: ^Array_Dyn(T)),
 }
 
 // Compute total size of an array by multiplying dimensions in shape

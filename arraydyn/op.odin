@@ -95,6 +95,7 @@ _get_broadcast_shape_and_strides :: proc(
 _array_binary_op :: #force_inline proc(
 	a, b: ^Array_Dyn($T),
 	fn: proc(_: T, _: T) -> T,
+	fn_bw: proc(_, _: ^Array_Dyn(T)),
 ) -> (
 	res: ^Array_Dyn(T),
 ) {
@@ -128,6 +129,9 @@ _array_binary_op :: #force_inline proc(
 
 	// Handle dependencies
 	set_requires_grad(res, a.requires_grad || b.requires_grad)
+	if a.requires_grad || b.requires_grad {
+		res.backward_fn = fn_bw
+	}
 	append(&res.deps, a, b)
 
 	return res
@@ -152,25 +156,97 @@ _array_unary_op :: #force_inline proc(
 }
 
 /******************************************************************************
+ Autograd backward pass execution logic
+ *****************************************************************************/
+
+backward :: proc {
+	backward_with_grad,
+	backward_no_grad,
+}
+
+backward_with_grad :: proc(arr: ^Array_Dyn($T), grad: ^Array_Dyn(T)) {
+	// If there's no backward function or no dependencies, nothing more to do
+	if arr.backward_fn == nil || len(arr.deps) == 0 {
+		return
+	}
+
+	// Call backward function to compute gradients for dependencies
+	arr.backward_fn(arr, grad)
+
+	// Recursively propagate gradients through dependencies
+	for dep in arr.deps {
+		if dep.requires_grad {
+			backward_with_grad(dep, grad)
+		}
+	}
+}
+
+backward_no_grad :: proc(arr: ^Array_Dyn($T)) {
+	grad := ones(T, arr.shape)
+
+	// Set initial gradient
+	if arr.requires_grad {
+		array_free(arr.grad)
+		arr.grad = grad
+	}
+
+	// If there's no backward function or no dependencies, nothing more to do
+	if arr.backward_fn == nil || len(arr.deps) == 0 {
+		return
+	}
+
+	// Call backward function to compute gradients for dependencies
+	arr.backward_fn(arr, grad)
+
+	// Recursively propagate gradients through dependencies
+	for dep in arr.deps {
+		if dep.requires_grad {
+			backward_with_grad(dep, grad)
+		}
+	}
+}
+
+/******************************************************************************
  Basic arithmetic operations
  *****************************************************************************/
 
 // Binary operators
 
 add :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
-	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x + y})
+	return _array_binary_op(
+		a = a,
+		b = b,
+		fn = #force_inline proc(x, y: T) -> T {return x + y},
+		// addition op backward:
+		fn_bw = proc(arr, g: ^Array_Dyn(T)) {
+			a := arr.deps[0]
+			b := arr.deps[1]
+
+			if a.requires_grad {
+				a_old_grad := a.grad
+				a.grad = add(a_old_grad, g)
+				array_free(a_old_grad)
+			}
+
+			if b.requires_grad {
+				b_old_grad := b.grad
+				b.grad = add(b_old_grad, g)
+				array_free(b_old_grad)
+			}
+		},
+	)
 }
 
 sub :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
-	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x - y})
+	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x - y}, nil)
 }
 
 mul :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
-	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x * y})
+	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x * y}, nil)
 }
 
 div :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
-	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x / y})
+	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x / y}, nil)
 }
 
 // Unary operators
