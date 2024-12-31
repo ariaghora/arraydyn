@@ -276,7 +276,7 @@ mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 		lhs = a,
 		rhs = b,
 		new_arrdata = add_a(a.arrdata, b.arrdata),
-		backward_fn_name = "add_backward",
+		backward_fn_name = "mul_backward",
 		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
 			a, b := tensor.deps[0], tensor.deps[1]
 
@@ -305,12 +305,29 @@ mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 	return res
 }
 
-// matmul :: proc {
-// 	matmul_a,
-// }
+matmul :: proc {
+	matmul_a,
+	matmul_t,
+}
 
-import "core:fmt"
-matmul :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
+transpose :: proc(a: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
+	if len(a.shape) != 2 {
+		panic("can only transpose matrix")
+	}
+
+	m, n := a.shape[0], a.shape[1]
+	result := _array_alloc(T, []uint{n, m})
+
+	for i: uint = 0; i < m; i += 1 {
+		for j: uint = 0; j < n; j += 1 {
+			result.data[j * result.strides[0] + i * result.strides[1]] = array_get(a, i, j)
+		}
+	}
+
+	return result
+}
+
+matmul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	if len(a.shape) != 2 {
 		panic("matmul is only for tensor with 2 dimensions (matrix)")
 	}
@@ -339,6 +356,44 @@ matmul :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	}
 
 	return result
+}
+
+matmul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
+	res := _tensor_binop(
+		lhs = a,
+		rhs = b,
+		new_arrdata = matmul_a(a.arrdata, b.arrdata),
+		backward_fn_name = "matmul_backward",
+		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
+			a, b := tensor.deps[0], tensor.deps[1]
+
+			// Propagate gradient to a if needed
+			if a.requires_grad {
+				old_grad := a.grad
+				// dL/dA = dL/dC * B^T
+				b_transpose := transpose(b.arrdata)
+				local_grad := matmul_a(upstream_grad, b_transpose)
+				defer array_free(local_grad)
+				defer array_free(b_transpose)
+				a.grad = add(old_grad, local_grad)
+				array_free(old_grad)
+			}
+
+			// Propagate gradient to b if needed
+			if b.requires_grad {
+				old_grad := b.grad
+				// dL/dB = A^T * dL/dC
+				a_transpose := transpose(a.arrdata)
+				local_grad := matmul_a(a_transpose, upstream_grad)
+				defer array_free(local_grad)
+				defer array_free(a_transpose)
+				b.grad = add(old_grad, local_grad)
+				array_free(old_grad)
+			}
+		},
+	)
+
+	return res
 }
 
 
