@@ -229,7 +229,6 @@ add_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x + y})
 }
 
-
 add_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 	res := _tensor_binop(
 		lhs = a,
@@ -263,8 +262,47 @@ sub :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x - y})
 }
 
-mul :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
+mul :: proc {
+	mul_a,
+	mul_t,
+}
+
+mul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x * y})
+}
+
+mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
+	res := _tensor_binop(
+		lhs = a,
+		rhs = b,
+		new_arrdata = add_a(a.arrdata, b.arrdata),
+		backward_fn_name = "add_backward",
+		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
+			a, b := tensor.deps[0], tensor.deps[1]
+
+			// Propagate gradient to a if needed
+			if a.requires_grad {
+				old_grad := a.grad
+				new_grad := b.arrdata
+				local_grad := mul(new_grad, upstream_grad)
+				defer array_free(local_grad)
+				a.grad = add(old_grad, local_grad)
+				array_free(old_grad)
+			}
+
+			// Propagate gradient to b if needed
+			if b.requires_grad {
+				old_grad := b.grad
+				new_grad := a.arrdata
+				local_grad := mul(new_grad, upstream_grad)
+				defer array_free(local_grad)
+				b.grad = add(old_grad, local_grad)
+				array_free(old_grad)
+			}
+		},
+	)
+
+	return res
 }
 
 div :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {

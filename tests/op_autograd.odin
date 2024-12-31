@@ -95,3 +95,37 @@ test_leak_from_complex_ops_inside_fn :: proc(t: ^testing.T) {
 	testing.expect(t, slice.equal(a.grad.data, expected_grad_x.data))
 	testing.expect(t, slice.equal(b.grad.data, expected_grad_y.data))
 }
+
+@(test)
+test_mul_autograd :: proc(t: ^testing.T) {
+	// Test x * y
+	a := ar.new_with_init([]i32{1, 2, 3, 4}, {2, 2})
+	defer ar.tensor_release(a)
+	ar.set_requires_grad(a, true)
+	b := ar.new_with_init([]i32{1, 2, 3, 4}, {2, 2})
+	ar.set_requires_grad(b, true)
+	defer ar.tensor_release(b)
+
+	c := ar.mul(a, b)
+	ar.backward(c)
+	defer ar.tensor_release(c)
+
+	// For multiplication, gradient for each input should be the other input
+	// since d(a*b)/da = b and d(a*b)/db = a
+	testing.expect(t, slice.equal(a.grad.data, b.arrdata.data))
+	testing.expect(t, slice.equal(b.grad.data, a.arrdata.data))
+
+	// Test x * x
+	x := ar.new_with_init([]i32{1, 2, 3, 4}, {2, 2})
+	defer ar.tensor_release(x)
+	ar.set_requires_grad(x, true)
+
+	y := ar.mul(x, x)
+	defer ar.tensor_release(y)
+	ar.backward(y)
+
+	// For x * x, gradient should be 2x since d(x^2)/dx = 2x
+	expected_grad := ar.new_with_init([]i32{2, 4, 6, 8}, {2, 2})
+	defer ar.tensor_release(expected_grad)
+	testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+}
