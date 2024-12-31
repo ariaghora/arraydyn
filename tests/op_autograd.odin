@@ -129,3 +129,43 @@ test_mul_autograd :: proc(t: ^testing.T) {
 	defer ar.tensor_release(expected_grad)
 	testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
 }
+
+@(test)
+test_matmul_autograd :: proc(t: ^testing.T) {
+	// // Test matrix multiplication
+	// a := ar.new_with_init([]i32{1, 2, 3, 4}, {2, 2})
+	// defer ar.tensor_release(a)
+	// ar.set_requires_grad(a, true)
+	// b := ar.new_with_init([]i32{5, 6, 7, 8}, {2, 2})
+	// ar.set_requires_grad(b, true)
+	// defer ar.tensor_release(b)
+
+	// c := ar.matmul(a, b)
+	// ar.backward(c)
+	// defer ar.tensor_release(c)
+
+	// // For matmul C = A @ B:
+	// // dC/dA = C @ B.T
+	// // dC/dB = A.T @ C
+	// expected_grad_a := ar.new_with_init([]i32{19, 22, 43, 50}, {2, 2})
+	// defer ar.tensor_release(expected_grad_a)
+	// expected_grad_b := ar.new_with_init([]i32{7, 10, 15, 22}, {2, 2})
+	// defer ar.tensor_release(expected_grad_b)
+
+	// testing.expect(t, slice.equal(a.grad.data, expected_grad_a.data))
+	// testing.expect(t, slice.equal(b.grad.data, expected_grad_b.data))
+
+	// // Test matmul with same matrix: x @ x
+	// x := ar.new_with_init([]i32{1, 2, 3, 4}, {2, 2})
+	// defer ar.tensor_release(x)
+	// ar.set_requires_grad(x, true)
+
+	// y := ar.matmul(x, x)
+	// defer ar.tensor_release(y)
+	// ar.backward(y)
+
+	// // For x @ x, gradient combines both dC/dA and dC/dB
+	// expected_grad := ar.new_with_init([]i32{10, 14, 14, 20}, {2, 2})
+	// defer ar.tensor_release(expected_grad)
+	// testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+}

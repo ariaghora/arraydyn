@@ -97,6 +97,24 @@ test_sub :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_matmul :: proc(t: ^testing.T) {
+	// (2,3) and (3,2) -> (2,2)
+	a := ar._new_with_init([]i32{1, 2, 3, 4, 5, 6}, {2, 3})
+	defer ar.array_free(a)
+	b := ar._new_with_init([]i32{1, 2, 3, 4, 5, 6}, {3, 2})
+	defer ar.array_free(b)
+	c := ar.matmul(a, b)
+	defer ar.array_free(c)
+	res := ar._get_strided_data(c)
+	defer delete(res)
+	//
+	// [1 2 3] [1 2]   [22 28]
+	// [4 5 6] [3 4]   [49 64]
+	//         [5 6]
+	testing.expect(t, slice.equal(res, []i32{22, 28, 49, 64}))
+}
+
+@(test)
 test_exp :: proc(t: ^testing.T) {
 	a := ar._new_with_init([]f32{0, 1, 2}, {3})
 	defer ar.array_free(a)

@@ -305,6 +305,43 @@ mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 	return res
 }
 
+// matmul :: proc {
+// 	matmul_a,
+// }
+
+import "core:fmt"
+matmul :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
+	if len(a.shape) != 2 {
+		panic("matmul is only for tensor with 2 dimensions (matrix)")
+	}
+
+	if !a.contiguous {
+		panic("for now matmul is only for contiguous matrices")
+	}
+
+	m, k, n := a.shape[0], a.shape[1], b.shape[1]
+	// Result will be m x n
+	result := _array_alloc(T, []uint{m, n})
+
+	// For each element in result matrix
+	for i: uint = 0; i < m; i += 1 {
+		for j: uint = 0; j < n; j += 1 {
+			sum: T = 0
+			// Compute dot product of row i from a and column j from b
+			for l: uint = 0; l < k; l += 1 {
+				a_val := array_get(a, i, l)
+				b_val := array_get(b, l, j)
+				sum += a_val * b_val
+			}
+			// Store result at (i,j)
+			result.data[i * result.strides[0] + j * result.strides[1]] = sum
+		}
+	}
+
+	return result
+}
+
+
 div :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return _array_binary_op(a, b, #force_inline proc(x, y: T) -> T {return x / y})
 }
