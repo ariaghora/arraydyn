@@ -170,10 +170,12 @@ print :: proc {
 	print_tensor,
 }
 
+@(private = "file")
 print_tensor :: proc(t: ^Tensor($T)) {
 	print_arr(t.arrdata, prefix = "Tensor", backward_fn_name = t.backward_fn_name)
 }
 
+@(private = "file")
 print_arr :: proc(arr: ^Array_Dyn($T), prefix: string = "Array", backward_fn_name: string = "") {
 	if len(arr.shape) == 0 {
 		fmt.printf("%s()", prefix)
@@ -192,13 +194,14 @@ print_arr :: proc(arr: ^Array_Dyn($T), prefix: string = "Array", backward_fn_nam
 
 	indices := make([]uint, len(arr.shape))
 	defer delete(indices)
-	_print_recursive(arr, arr.shape, arr.strides, 0, indices, 1, &builder)
+	print_recursive(arr, arr.shape, arr.strides, 0, indices, 1, &builder)
 	strings.write_string(&builder, "\n")
 
 	fmt.println(strings.to_string(builder))
 }
 
-_print_recursive :: proc(
+@(private = "file")
+print_recursive :: proc(
 	arr: ^Array_Dyn($T),
 	shape: []uint,
 	strides: []uint,
@@ -213,7 +216,7 @@ _print_recursive :: proc(
 
 		for i in 0 ..< shape[depth] {
 			indices[depth] = i
-			index := _compute_linear_index(indices, strides)
+			index := compute_linear_index(indices, strides)
 
 			if i > 0 {
 				strings.write_byte(builder, ' ')
@@ -242,7 +245,7 @@ _print_recursive :: proc(
 			}
 
 			indices[depth] = i
-			_print_recursive(arr, shape, strides, depth + 1, indices, indent + 1, builder)
+			print_recursive(arr, shape, strides, depth + 1, indices, indent + 1, builder)
 
 			if i < shape[depth] - 1 {
 				strings.write_byte(builder, ',')
@@ -252,7 +255,8 @@ _print_recursive :: proc(
 	}
 }
 
-_compute_linear_index :: proc(indices: []uint, strides: []uint) -> uint {
+@(private = "package")
+compute_linear_index :: proc(indices: []uint, strides: []uint) -> uint {
 	index: uint = 0
 	for i in 0 ..< len(indices) {
 		index += indices[i] * strides[i]
@@ -260,21 +264,33 @@ _compute_linear_index :: proc(indices: []uint, strides: []uint) -> uint {
 	return index
 }
 
-array_free :: proc(arr: ^Array_Dyn($T), remaining: ..^Array_Dyn(T)) {
+array_free :: proc {
+	array_free_one,
+	array_free_many,
+}
+
+@(private = "file")
+array_free_one :: proc(arr: ^Array_Dyn($T)) {
 	delete(arr.data)
 	delete(arr.shape)
 	delete(arr.strides)
 	free(arr)
+}
 
-	for rem in remaining {
-		delete(rem.data)
-		delete(rem.shape)
-		delete(rem.strides)
-		free(rem)
+@(private = "file")
+array_free_many :: proc(arr: ^Array_Dyn($T), rest: ..^Array_Dyn(T)) {
+	array_free_one(arr)
+	for r in rest {
+		array_free_one(r)
 	}
 }
 
-tensor_release :: proc(t: ^Tensor($T)) {
+tensor_release :: proc {
+	tensor_release_one,
+	tensor_release_many,
+}
+
+tensor_release_one :: proc(t: ^Tensor($T)) {
 	if t == nil do return
 
 	t.ref_count -= 1
@@ -290,6 +306,13 @@ tensor_release :: proc(t: ^Tensor($T)) {
 		}
 		delete(t.deps)
 		free(t)
+	}
+}
+
+tensor_release_many :: proc(t: ^Tensor($T), rest: ..^Tensor(T)) {
+	tensor_release_one(t)
+	for r in rest {
+		tensor_release_one(r)
 	}
 }
 
