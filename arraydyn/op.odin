@@ -164,57 +164,6 @@ _tensor_binop :: proc(
 }
 
 /******************************************************************************
- Autograd backward pass execution logic
- *****************************************************************************/
-
-backward :: proc {
-	backward_with_grad,
-	backward_no_grad,
-}
-
-backward_with_grad :: proc(t: ^Tensor($T), grad: ^Array_Dyn(T)) {
-	// If there's no backward function or no dependencies, nothing more to do
-	if t.backward_fn == nil || len(t.deps) == 0 {
-		return
-	}
-
-	// Call backward function to compute gradients for dependencies
-	t.backward_fn(t, grad)
-
-	// Recursively propagate gradients through dependencies
-	for dep in t.deps {
-		if dep.requires_grad {
-			backward_with_grad(dep, grad)
-		}
-	}
-}
-
-backward_no_grad :: proc(t: ^Tensor($T)) {
-	grad := _ones(T, t.shape)
-
-	// Set initial gradient
-	if t.requires_grad {
-		array_free(t.grad)
-		t.grad = grad
-	}
-
-	// If there's no backward function or no dependencies, nothing more to do
-	if t.backward_fn == nil || len(t.deps) == 0 {
-		return
-	}
-
-	// Call backward function to compute gradients for dependencies
-	t.backward_fn(t, grad)
-
-	// Recursively propagate gradients through dependencies
-	for dep in t.deps {
-		if dep.requires_grad {
-			backward_with_grad(dep, grad)
-		}
-	}
-}
-
-/******************************************************************************
  Basic arithmetic operations
  *****************************************************************************/
 
@@ -241,15 +190,17 @@ add_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 			// Propagate gradient to a if needed
 			if a.requires_grad {
 				old_grad := a.grad
-				a.grad = add(old_grad, upstream_grad)
-				array_free(old_grad)
+				grad_a := broadcast_grad_to_shape(upstream_grad, a.arrdata.shape)
+				a.grad = add(old_grad, grad_a)
+				array_free(old_grad, grad_a)
 			}
 
 			// Propagate gradient to b if needed
 			if b.requires_grad {
 				old_grad := b.grad
-				b.grad = add(old_grad, upstream_grad)
-				array_free(old_grad)
+				grad_b := broadcast_grad_to_shape(upstream_grad, b.arrdata.shape)
+				b.grad = add(old_grad, grad_b)
+				array_free(old_grad, grad_b)
 			}
 		},
 	)
@@ -275,7 +226,7 @@ mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 	res := _tensor_binop(
 		lhs = a,
 		rhs = b,
-		new_arrdata = add_a(a.arrdata, b.arrdata),
+		new_arrdata = mul_a(a.arrdata, b.arrdata),
 		backward_fn_name = "mul_backward",
 		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
 			a, b := tensor.deps[0], tensor.deps[1]
@@ -285,8 +236,10 @@ mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 				old_grad := a.grad
 				new_grad := b.arrdata
 				local_grad := mul(new_grad, upstream_grad)
+				grad_a := broadcast_grad_to_shape(local_grad, a.arrdata.shape)
 				defer array_free(local_grad)
-				a.grad = add(old_grad, local_grad)
+				defer array_free(grad_a)
+				a.grad = add(old_grad, grad_a)
 				array_free(old_grad)
 			}
 
@@ -295,8 +248,10 @@ mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 				old_grad := b.grad
 				new_grad := a.arrdata
 				local_grad := mul(new_grad, upstream_grad)
+				grad_b := broadcast_grad_to_shape(local_grad, b.arrdata.shape)
 				defer array_free(local_grad)
-				b.grad = add(old_grad, local_grad)
+				defer array_free(grad_b)
+				b.grad = add(old_grad, grad_b)
 				array_free(old_grad)
 			}
 		},
@@ -304,7 +259,6 @@ mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
 
 	return res
 }
-
 matmul :: proc {
 	matmul_a,
 	matmul_t,

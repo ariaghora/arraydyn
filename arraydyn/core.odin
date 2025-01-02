@@ -404,6 +404,19 @@ _compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) 
 	}
 }
 
+reshape :: proc(arr: ^Array_Dyn($T), new_shape: []uint) -> ^Array_Dyn(T) {
+	// Check if total size matches
+	old_size := _shape_to_size(arr.shape)
+	new_size := _shape_to_size(new_shape)
+	if old_size != new_size {
+		panic(fmt.tprintf("Cannot reshape array of size %v to shape %v", old_size, new_shape))
+	}
+
+	res := _array_alloc(T, new_shape)
+	copy(res.data, arr.data) // Since we're just changing shape, data can be copied directly
+	return res
+}
+
 set_requires_grad :: proc(t: ^Tensor($T), val: bool) {
 	if val {
 		// if val is true and  arr already requires grad, nothing to do
