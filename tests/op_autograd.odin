@@ -22,7 +22,7 @@ test_add_autograd :: proc(t: ^testing.T) {
 
 	// After backward, a.grad and b.grad should each contain ones
 	// since derivative of addition is 1 for both inputs
-	expected_grad := ar.ones(i32, {2, 2})
+	expected_grad := ar._ones(i32, {2, 2})
 	defer ar.array_free(expected_grad)
 
 	testing.expect(t, slice.equal(a.grad.data, expected_grad.data))

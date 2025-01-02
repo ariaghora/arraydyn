@@ -190,7 +190,7 @@ backward_with_grad :: proc(t: ^Tensor($T), grad: ^Array_Dyn(T)) {
 }
 
 backward_no_grad :: proc(t: ^Tensor($T)) {
-	grad := ones(T, t.shape)
+	grad := _ones(T, t.shape)
 
 	// Set initial gradient
 	if t.requires_grad {

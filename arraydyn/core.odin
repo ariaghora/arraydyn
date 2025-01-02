@@ -122,19 +122,44 @@ data_len :: proc(arr: ^Array_Dyn) -> uint {
 // Create a new array filled with ones. Arrays are initialized for all data types by casting
 // 1 to the target type, so for example this works with floating point data types, integers
 // and even complex data types like bool or void types.
-ones :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
+_ones :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	res = _array_alloc(T, shape)
 	for _, i in res.data {res.data[i] = T(1)}
 	return res
 }
 
+ones :: proc($T: typeid, shape: []uint) -> (res: ^Tensor(T)) {
+	return _tensor_from_array(_ones(T, shape))
+}
+
+// Create an array with normally-distributed random values
+import "core:math"
+import "core:math/rand"
+_randn :: proc($T: typeid, shape: []uint, mean, stddev: T) -> (res: ^Array_Dyn(T)) {
+	res = _array_alloc(T, shape)
+	for _, i in res.data {
+		// Box-Muller transform to generate normal distribution
+		u1 := rand.float64()
+		u2 := rand.float64()
+		z := math.sqrt(-2 * math.ln(u1)) * math.cos(2 * math.PI * u2)
+		res.data[i] = T(z)
+	}
+	return res
+}
+randn :: proc($T: typeid, shape: []uint, mean, stddev: T) -> (res: ^Tensor(T)) {
+	return _tensor_from_array(_randn(T, shape, mean, stddev))
+}
+
 // Create a new array filled with zeros. Arrays are initialized for all data types by casting
 // 0 to the target type, so for example this works with floating point data types, integers
 // and even complex data types like bool or void types.
-zeros :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
+_zeros :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	res = _array_alloc(T, shape)
 	for _, i in res.data {res.data[i] = T(0)}
 	return res
+}
+zeros :: proc($T: typeid, shape: []uint) -> (res: ^Tensor(T)) {
+	return _tensor_from_array(_zeros(T, shape))
 }
 
 // Create a new array with given data and shape. This function performs a copy
@@ -385,7 +410,7 @@ set_requires_grad :: proc(t: ^Tensor($T), val: bool) {
 		if t.requires_grad {return}
 
 		// set grads to 0 with shape == arr.shape
-		t.grad = zeros(T, t.shape)
+		t.grad = _zeros(T, t.shape)
 		t.requires_grad = true
 	} else {
 		// if arr originally requires grad, free it
