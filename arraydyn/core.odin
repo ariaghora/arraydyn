@@ -378,29 +378,36 @@ _array_get_nd :: #force_inline proc(arr: ^Array_Dyn($T), coord: []uint) -> T {
 
 
 _compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) -> uint {
-	switch len(shape) {
-	case 1:
-		return idx * strides[0]
-	case 2:
-		i1 := idx % shape[1]
-		i0 := idx / shape[1]
-		return i0 * strides[0] + i1 * strides[1]
-	case 3:
-		i2 := idx % shape[2]
-		tmp := idx / shape[2]
-		i1 := tmp % shape[1]
-		i0 := tmp / shape[1]
-		return i0 * strides[0] + i1 * strides[1] + i2 * strides[2]
-	case:
-		// N-dimensional case
-		offset: uint = 0
-		remaining := idx
-		for i := len(shape) - 1; i >= 0; i -= 1 {
-			coord := remaining % shape[i]
-			offset += coord * strides[i]
-			remaining /= shape[i]
+	#no_bounds_check {
+		switch len(shape) {
+		case 1:
+			return idx * strides[0]
+		case 2:
+			s0, s1 := strides[0], strides[1]
+			d1 := shape[1]
+			return (idx / d1) * s0 + (idx % d1) * s1
+		case 4:
+			s0, s1, s2, s3 := strides[0], strides[1], strides[2], strides[3]
+			d1, d2, d3 := shape[1], shape[2], shape[3]
+			i3 := idx % d3
+			tmp := idx / d3
+			i2 := tmp % d2
+			tmp /= d2
+			i1 := tmp % d1
+			i0 := tmp / d1
+			return i0 * s0 + i1 * s1 + i2 * s2 + i3 * s3
+		case:
+			// For N-dim, precompute products to avoid repeated divisions
+			offset: uint = 0
+			remaining := idx
+			dim_product := uint(1)
+			for i := len(shape) - 1; i >= 0; i -= 1 {
+				coord := (remaining / dim_product) % shape[i]
+				offset += coord * strides[i]
+				dim_product *= shape[i]
+			}
+			return offset
 		}
-		return offset
 	}
 }
 
