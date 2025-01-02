@@ -29,18 +29,24 @@ test_broadcast_grad_to_shape_mlp :: proc(t: ^testing.T) {
 	x := ar.ones(f32, {32, 64}) // batch_size x input_dim
 	w := ar.ones(f32, {64, 128}) // input_dim x output_dim
 	b := ar.ones(f32, {128}) // output_dim
+	ar.set_requires_grad(x, true)
+	ar.set_requires_grad(w, true)
+	ar.set_requires_grad(b, true)
 	defer ar.tensor_release(x, w, b)
 
-	// test broadcasting gradient from (32, 128) back to (128)
-	grad := ar.ones(f32, {32, 128})
-	grad_b := ar.broadcast_grad_to_shape(grad.arrdata, b.shape)
-	defer ar.tensor_release(grad)
-	defer ar.array_free(grad_b)
+	// Forward pass
+	wx := ar.matmul(x, w)
+	out := ar.add(wx, b)
+	defer ar.tensor_release(wx, out)
 
-	testing.expect_value(t, len(grad_b.shape), 1)
-	testing.expect_value(t, grad_b.shape[0], 128)
+	// Backward pass
+	ar.backward(out)
 
-	data := ar._get_strided_data(grad_b)
+	// Test gradient shapes and values
+	testing.expect_value(t, len(b.grad.shape), 1)
+	testing.expect_value(t, b.grad.shape[0], 128)
+
+	data := ar._get_strided_data(b.grad)
 	defer delete(data)
 	for val in data {
 		testing.expect_value(t, val, 32) // sum over batch dimension
