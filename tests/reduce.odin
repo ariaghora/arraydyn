@@ -229,3 +229,66 @@ test_sum_autograd :: proc(t: ^testing.T) {
 		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
 	}
 }
+
+@(test)
+test_mean_autograd :: proc(t: ^testing.T) {
+	// Test basic mean gradient
+	{
+		x := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		ar.set_requires_grad(x, true)
+		defer ar.tensor_release(x)
+
+		y := ar.mean(x, 1) // Mean of rows: [2, 5]
+		defer ar.tensor_release(y)
+
+		ar.backward(y)
+
+		// Gradient should be 1/3 since mean divides by 3 (axis size)
+		expected_grad := ar._new_with_init(
+			[]f32{1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0, 1.0 / 3.0},
+			[]uint{2, 3},
+		)
+		defer ar.array_free(expected_grad)
+
+		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+	}
+
+	// Test mean gradient with keepdims
+	{
+		x := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		ar.set_requires_grad(x, true)
+		defer ar.tensor_release(x)
+
+		y := ar.mean(x, 0, keepdims = true) // Mean of columns with keepdims: [[2.5, 3.5, 4.5]]
+		defer ar.tensor_release(y)
+
+		ar.backward(y)
+
+		// Gradient should be 1/2 since mean divides by 2 (axis size)
+		expected_grad := ar._new_with_init([]f32{0.5, 0.5, 0.5, 0.5, 0.5, 0.5}, []uint{2, 3})
+		defer ar.array_free(expected_grad)
+
+		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+	}
+
+	// Test mean without axis (global mean)
+	{
+		x := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		ar.set_requires_grad(x, true)
+		defer ar.tensor_release(x)
+
+		y := ar.mean(x) // Global mean: 3.5
+		defer ar.tensor_release(y)
+
+		ar.backward(y)
+
+		// Gradient should be 1/6 since mean divides by total size (2*3=6)
+		expected_grad := ar._new_with_init(
+			[]f32{1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0},
+			[]uint{2, 3},
+		)
+		defer ar.array_free(expected_grad)
+
+		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+	}
+}

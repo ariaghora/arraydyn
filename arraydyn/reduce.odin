@@ -3,7 +3,8 @@ package arraydyn
 import "base:builtin"
 import "core:math"
 
-_reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
+@(private = "package")
+reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
 	if axis < 0 || axis >= len(shape) {
 		panic("Axis out of bounds")
 	}
@@ -18,7 +19,7 @@ _reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
 		// Original behavior: remove the axis
 		new_shape := make([]uint, len(shape) - 1)
 		j := 0
-		for i := 0; i < len(shape); i += 1 {
+		for i in 0 ..< len(shape) {
 			if i != axis {
 				new_shape[j] = shape[i]
 				j += 1
@@ -31,7 +32,8 @@ _reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
 // Perform a reduction operation along a specific axis. The reducer function is applied
 // pairwise to all elements along the given axis, with the specified initial value as
 // starting point. The operation preserves the array dimensions if keepdims is true.
-_reduce :: proc(
+@(private = "package")
+reduce_along_axis :: proc(
 	arr: ^Array_Dyn($T),
 	reducer: proc(_: T, _: T) -> T, // Function that combines two elements into one
 	initial: T, // Starting value for reduction (e.g., 0 for sum, 1 for product)
@@ -40,13 +42,13 @@ _reduce :: proc(
 ) -> ^Array_Dyn(T) {
 	// Get shape for result array, handling keepdims case.
 	// Deferred delete needed since _array_alloc copies it
-	out_shape := _reduction_shape(arr.shape, axis, keepdims)
+	out_shape := reduction_shape(arr.shape, axis, keepdims)
 	defer delete(out_shape)
 	result := _array_alloc(T, out_shape)
 
 	// Initialize all elements to initial value since reducer will use these as
 	// starting points
-	for i := 0; i < len(result.data); i += 1 {
+	for _, i in result.data {
 		result.data[i] = initial
 	}
 
@@ -55,7 +57,7 @@ _reduce :: proc(
 	// - Dimensions before axis are [2], so outer_size = 2
 	// - This determines how many complete "slices" we need to process
 	outer_size: uint = 1
-	for i := 0; i < axis; i += 1 {
+	for i in 0 ..< axis {
 		outer_size *= arr.shape[i]
 	}
 
@@ -67,7 +69,7 @@ _reduce :: proc(
 	//   * For outer=0: process 4 elements across each of the 3 positions in axis
 	//   * For outer=1: repeat for the second slice
 	inner_size: uint = 1
-	for i := axis + 1; i < len(arr.shape); i += 1 {
+	for i in (axis + 1) ..< len(arr.shape) {
 		inner_size *= arr.shape[i]
 	}
 
@@ -80,12 +82,12 @@ _reduce :: proc(
 	if arr.contiguous {
 		// Fast path: direct indexing for contiguous memory layout. The nested loops
 		// process: outer dims -> inner dims -> reduction axis.
-		for outer := uint(0); outer < outer_size; outer += 1 {
-			for inner := uint(0); inner < inner_size; inner += 1 {
+		for outer in 0 ..< outer_size {
+			for inner in 0 ..< inner_size {
 				// Output index maps to reduced shape by skipping reduction axis.
 				// Each out_idx accumulates values from axis_size elements.
 				out_idx := outer * inner_size + inner
-				for a := uint(0); a < axis_size; a += 1 {
+				for a in 0 ..< axis_size {
 					// Input index formula expands position to full dimensionality.
 					// The term (a * inner_size) strides through reduction axis while
 					// keeping inner/outer coords fixed.
@@ -98,10 +100,10 @@ _reduce :: proc(
 		// Slow path: handle non-contiguous arrays (e.g., views, transposed).
 		// Same loop structure but must compute true memory position using strides.
 		// This is slower but necessary for correctness with arbitrary layouts.
-		for outer := uint(0); outer < outer_size; outer += 1 {
-			for inner := uint(0); inner < inner_size; inner += 1 {
+		for outer in 0 ..< outer_size {
+			for inner in 0 ..< inner_size {
 				out_idx := outer * inner_size + inner
-				for a := uint(0); a < axis_size; a += 1 {
+				for a in 0 ..< axis_size {
 					// First compute logical flat index, then map to actual memory
 					// position using strides. This two-step process handles any
 					// possible memory layout.
@@ -119,24 +121,61 @@ _reduce :: proc(
 sum :: proc {
 	sum_a,
 	sum_t,
+	sum_axis_a,
+	sum_axis_t,
 }
 
-sum_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
-	return _reduce(arr, proc(x, y: T) -> T {return x + y}, T(0), axis, keepdims)
+sum_a :: proc(arr: ^Array_Dyn($T), keepdims := false) -> ^Array_Dyn(T) {
+	size := uint(1)
+	for s in arr.shape {
+		size *= s
+	}
+	out_shape := keepdims ? make([]uint, len(arr.shape)) : []uint{1}
+	if keepdims {
+		for i in 0 ..< len(arr.shape) {
+			out_shape[i] = 1
+		}
+		defer delete(out_shape)
+	}
+	return reduce_along_axis(arr, proc(x, y: T) -> T {return x + y}, T(0), 0, keepdims)
 }
 
-sum_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
+sum_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {
+	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
+	defer tensor_release(keepdims_tensor)
+
+	return autograd_make_op(
+		deps = []^Tensor(T){t, keepdims_tensor},
+		new_arrdata = sum_a(t.arrdata, keepdims),
+		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
+			input_tensor := tensor.deps[0]
+			keepdims := tensor.deps[1].data[0] > 0
+
+			// Expand gradient back to input shape
+			expanded_grad := broadcast_grad_to_shape(grad_output, input_tensor.shape)
+
+			// Add to existing gradient
+			old_grad := input_tensor.grad
+			input_tensor.grad = add(old_grad, expanded_grad)
+			array_free(old_grad, expanded_grad)
+		},
+		backward_fn_name = "sum_backward",
+	)
+}
+
+sum_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+	return reduce_along_axis(arr, proc(x, y: T) -> T {return x + y}, T(0), axis, keepdims)
+}
+
+sum_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
 	// Create tensors to store axis and keepdims values
 	axis_tensor := new_with_init([]T{T(axis)}, {1})
 	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
-	// Defer tensor release because these tensors are added to deps in autograd_make_op
-	// which increments their ref_count. We need to release our local reference to them
-	// after autograd_make_op returns but before this function returns.
 	defer tensor_release(axis_tensor, keepdims_tensor)
 
 	return autograd_make_op(
 		deps = []^Tensor(T){t, axis_tensor, keepdims_tensor},
-		new_arrdata = sum_a(t.arrdata, axis, keepdims),
+		new_arrdata = sum_axis_a(t.arrdata, axis, keepdims),
 		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
 			input_tensor := tensor.deps[0]
 			// Extract cached values from deps
@@ -144,7 +183,7 @@ sum_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
 			keepdims := tensor.deps[2].data[0] > 0
 
 			// Create output shape for the gradient based on keepdims
-			out_shape := _reduction_shape(input_tensor.shape, axis, keepdims)
+			out_shape := reduction_shape(input_tensor.shape, axis, keepdims)
 			defer delete(out_shape)
 
 			// Expand gradient back to input shape
@@ -161,7 +200,7 @@ sum_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
 
 
 max :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
-	return _reduce(
+	return reduce_along_axis(
 		arr,
 		proc(x, y: T) -> T {return builtin.max(x, y)},
 		builtin.min(T),
@@ -171,7 +210,7 @@ max :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) 
 }
 
 min :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
-	return _reduce(
+	return reduce_along_axis(
 		arr,
 		proc(x, y: T) -> T {return builtin.min(x, y)},
 		builtin.max(T),
@@ -180,15 +219,106 @@ min :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) 
 	)
 }
 
-mean :: proc(
-	arr: ^Array_Dyn($T),
-	axis: int,
-	keepdims := false,
-) -> ^Array_Dyn(T) where intrinsics.type_is_float(T) {
-	s := sum(arr, axis, keepdims)
-	n := T(arr.shape[axis])
-	for i := 0; i < len(s.data); i += 1 {
+mean :: proc {
+	mean_a,
+	mean_t,
+	mean_axis_a,
+	mean_axis_t,
+}
+
+mean_a :: proc(arr: ^Array_Dyn($T), keepdims := false) -> ^Array_Dyn(T) {
+	size := uint(1)
+	for s in arr.shape {
+		size *= s
+	}
+	n := T(size)
+	out_shape := keepdims ? make([]uint, len(arr.shape)) : []uint{1}
+	if keepdims {
+		for i in 0 ..< len(arr.shape) {
+			out_shape[i] = 1
+		}
+		defer delete(out_shape)
+	}
+	s := sum_axis_a(arr, 0, keepdims = keepdims)
+	for i in 0 ..< len(s.data) {
 		s.data[i] /= n
 	}
 	return s
+}
+
+mean_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {
+	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
+	defer tensor_release(keepdims_tensor)
+
+	return autograd_make_op(
+		deps = []^Tensor(T){t, keepdims_tensor},
+		new_arrdata = mean_a(t.arrdata, keepdims),
+		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
+			input_tensor := tensor.deps[0]
+			keepdims := tensor.deps[1].data[0] > 0
+			size := uint(1)
+			for s in input_tensor.shape {
+				size *= s
+			}
+			n := T(size)
+
+			// Scale gradient by 1/n since d(mean)/dx = 1/n for each input x
+			scaled_grad := clone(grad_output)
+			for i := 0; i < len(scaled_grad.data); i += 1 {
+				scaled_grad.data[i] /= n
+			}
+
+			// Expand gradient back to input shape
+			expanded_grad := broadcast_grad_to_shape(scaled_grad, input_tensor.shape)
+			array_free(scaled_grad)
+
+			// Add to existing gradient
+			old_grad := input_tensor.grad
+			input_tensor.grad = add(old_grad, expanded_grad)
+			array_free(old_grad, expanded_grad)
+		},
+		backward_fn_name = "mean_backward",
+	)
+}
+mean_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+	s := sum_axis_a(arr, axis, keepdims)
+	n := T(arr.shape[axis])
+	for i in 0 ..< len(s.data) {
+		s.data[i] /= n
+	}
+	return s
+}
+
+mean_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
+	// Create tensors to store axis and keepdims values
+	axis_tensor := new_with_init([]T{T(axis)}, {1})
+	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
+	defer tensor_release(axis_tensor, keepdims_tensor)
+
+	return autograd_make_op(
+		deps = []^Tensor(T){t, axis_tensor, keepdims_tensor},
+		new_arrdata = mean_axis_a(t.arrdata, axis, keepdims),
+		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
+			input_tensor := tensor.deps[0]
+			axis := int(tensor.deps[1].data[0])
+			keepdims := tensor.deps[2].data[0] > 0
+			n := T(input_tensor.shape[axis])
+
+			// Scale gradient by 1/n since d(mean)/dx = 1/n for each input x
+			scaled_grad := clone(grad_output)
+			for i in 0 ..< len(scaled_grad.data) {
+				scaled_grad.data[i] /= n
+			}
+
+			// Expand gradient back to input shape
+			expanded_grad := broadcast_grad_to_shape(scaled_grad, input_tensor.shape)
+			array_free(scaled_grad)
+
+			// Add to existing gradient
+			old_grad := input_tensor.grad
+			input_tensor.grad = add(old_grad, expanded_grad)
+			array_free(old_grad, expanded_grad)
+		},
+		backward_fn_name = "mean_backward",
+	)
 }

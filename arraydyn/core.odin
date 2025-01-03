@@ -263,7 +263,7 @@ print_recursive :: proc(
 		for i in 0 ..< shape[depth] {
 			if i > 0 {
 				strings.write_string(builder, "\n")
-				for j := 0; j < depth + 1; j += 1 {
+				for j in 0 ..< depth + 1 {
 					strings.write_string(builder, " ")
 				}
 			}
