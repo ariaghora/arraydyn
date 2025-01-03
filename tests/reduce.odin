@@ -228,6 +228,23 @@ test_sum_autograd :: proc(t: ^testing.T) {
 
 		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
 	}
+
+	// Test sum gradient without axis (global sum)
+	{
+		x := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		ar.set_requires_grad(x, true)
+		defer ar.tensor_release(x)
+
+		y := ar.sum(x) // Global sum: 21
+		defer ar.tensor_release(y)
+
+		ar.backward(y)
+
+		expected_grad := ar._new_with_init([]f32{1, 1, 1, 1, 1, 1}, []uint{2, 3})
+		defer ar.array_free(expected_grad)
+
+		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+	}
 }
 
 @(test)
