@@ -163,7 +163,7 @@ add_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 }
 
 add_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
-	res := autograd_add_deps(
+	res := autograd_make_op(
 		[]^Tensor(T){a, b},
 		new_arrdata = add_a(a.arrdata, b.arrdata),
 		backward_fn_name = "add_backward",
@@ -206,7 +206,7 @@ mul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 }
 
 mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
-	res := autograd_add_deps(
+	res := autograd_make_op(
 		[]^Tensor(T){a, b},
 		new_arrdata = mul_a(a.arrdata, b.arrdata),
 		backward_fn_name = "mul_backward",
@@ -295,7 +295,7 @@ matmul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 }
 
 matmul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
-	res := autograd_add_deps(
+	res := autograd_make_op(
 		[]^Tensor(T){a, b},
 		new_arrdata = matmul_a(a.arrdata, b.arrdata),
 		backward_fn_name = "matmul_backward",

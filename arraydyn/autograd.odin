@@ -3,7 +3,7 @@ package arraydyn
 import "core:slice"
 
 
-autograd_add_deps :: proc(
+autograd_make_op :: proc(
 	deps: []^Tensor($T),
 	new_arrdata: ^Array_Dyn(T),
 	backward_fn: proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)),
