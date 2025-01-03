@@ -3,6 +3,42 @@ package arraydyn
 import "core:slice"
 
 
+autograd_add_deps :: proc(
+	deps: []^Tensor($T),
+	new_arrdata: ^Array_Dyn(T),
+	backward_fn: proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)),
+	backward_fn_name: string,
+) -> ^Tensor(T) {
+	res := _tensor_from_array(new_arrdata)
+
+	// Track if gradients are needed by checking if any dependency requires gradients
+	// This propagates gradient requirements up through the computational graph
+	requres_grad := false
+	for dep in deps {
+		// Increment reference count to prevent premature cleanup since this tensor
+		// now depends on the dependency tensor
+		dep.ref_count += 1
+		// Use OR to propagate gradient requirement - if any dependency needs gradients,
+		// this tensor will need them too for backprop
+		requres_grad |= dep.requires_grad
+	}
+
+	// Store dependencies for backpropagation - we need these to recursively compute
+	// gradients during backward pass
+	append(&res.deps, ..deps)
+
+	// Configure gradient tracking based on dependencies' requirements
+	// This ensures we only allocate gradients where needed
+	set_requires_grad(res, requres_grad)
+
+	// Store the backward function and its name for gradient computation
+	// The name is useful for debugging and visualization of the computation graph
+	res.backward_fn = backward_fn
+	res.backward_fn_name = backward_fn_name
+
+	return res
+}
+
 backward :: proc {
 	backward_with_grad,
 	backward_no_grad,

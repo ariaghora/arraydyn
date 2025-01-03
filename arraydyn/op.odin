@@ -147,22 +147,6 @@ _array_unary_op :: #force_inline proc(
 	return res
 }
 
-_tensor_binop :: proc(
-	lhs, rhs: ^Tensor($T),
-	new_arrdata: ^Array_Dyn(T),
-	backward_fn: proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)),
-	backward_fn_name: string,
-) -> ^Tensor(T) {
-	res := _tensor_from_array(new_arrdata)
-	lhs.ref_count += 1
-	rhs.ref_count += 1
-	append(&res.deps, lhs, rhs)
-	set_requires_grad(res, lhs.requires_grad || rhs.requires_grad)
-	res.backward_fn = backward_fn
-	res.backward_fn_name = backward_fn_name
-	return res
-}
-
 /******************************************************************************
  Basic arithmetic operations
  *****************************************************************************/
@@ -179,9 +163,8 @@ add_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 }
 
 add_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
-	res := _tensor_binop(
-		lhs = a,
-		rhs = b,
+	res := autograd_add_deps(
+		[]^Tensor(T){a, b},
 		new_arrdata = add_a(a.arrdata, b.arrdata),
 		backward_fn_name = "add_backward",
 		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
@@ -223,9 +206,8 @@ mul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 }
 
 mul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
-	res := _tensor_binop(
-		lhs = a,
-		rhs = b,
+	res := autograd_add_deps(
+		[]^Tensor(T){a, b},
 		new_arrdata = mul_a(a.arrdata, b.arrdata),
 		backward_fn_name = "mul_backward",
 		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
@@ -313,9 +295,8 @@ matmul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 }
 
 matmul_t :: proc(a, b: ^Tensor($T)) -> ^Tensor(T) {
-	res := _tensor_binop(
-		lhs = a,
-		rhs = b,
+	res := autograd_add_deps(
+		[]^Tensor(T){a, b},
 		new_arrdata = matmul_a(a.arrdata, b.arrdata),
 		backward_fn_name = "matmul_backward",
 		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
