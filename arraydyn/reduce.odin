@@ -1,5 +1,6 @@
 package arraydyn
 
+import "base:builtin"
 import "core:math"
 
 _reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
@@ -159,13 +160,24 @@ sum_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
 }
 
 
-// NOTE(Aria): We chose name `maximum` and `minimum` to avoid collision with Odin's builtin
-maximum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
-	return _reduce(arr, proc(x, y: T) -> T {return max(x, y)}, T(0), axis, keepdims)
+max :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+	return _reduce(
+		arr,
+		proc(x, y: T) -> T {return builtin.max(x, y)},
+		builtin.min(T),
+		axis,
+		keepdims,
+	)
 }
 
-minimum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
-	return _reduce(arr, proc(x, y: T) -> T {return min(x, y)}, T(0), axis, keepdims)
+min :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+	return _reduce(
+		arr,
+		proc(x, y: T) -> T {return builtin.min(x, y)},
+		builtin.max(T),
+		axis,
+		keepdims,
+	)
 }
 
 mean :: proc(

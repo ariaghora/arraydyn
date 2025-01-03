@@ -1,12 +1,13 @@
 package arraydyn
 
+import "base:builtin"
 import "core:math"
 import "core:slice"
 
 _is_broadcastable :: proc(shape_a, shape_b: []uint) -> bool {
 	rank_a := len(shape_a)
 	rank_b := len(shape_b)
-	max_rank := max(rank_a, rank_b)
+	max_rank := builtin.max(rank_a, rank_b)
 
 	for i in 0 ..< max_rank {
 		a_idx := rank_a - 1 - i
@@ -39,7 +40,7 @@ _get_broadcast_shape_and_strides :: proc(
 	// This allows broadcasting between e.g. 2D and 3D arrays.
 	rank_a := len(shape_a)
 	rank_b := len(shape_b)
-	max_rank := max(rank_a, rank_b)
+	max_rank := builtin.max(rank_a, rank_b)
 
 	// Allocate output arrays with size of largest rank. We need these to be
 	// the same size to properly align dimensions for broadcasting.
@@ -69,7 +70,7 @@ _get_broadcast_shape_and_strides :: proc(
 
 		// Output shape takes the larger dimension, allowing broadcasting of
 		// size-1 dimensions against larger ones.
-		shape[max_rank - 1 - i] = max(dim_a, dim_b)
+		shape[max_rank - 1 - i] = builtin.max(dim_a, dim_b)
 
 		// Set stride to 0 for broadcasted (size-1) dimensions to replicate values.
 		// Keep original stride otherwise to preserve data layout.

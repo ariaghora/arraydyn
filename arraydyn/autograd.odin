@@ -1,5 +1,6 @@
 package arraydyn
 
+import "base:builtin"
 import "core:slice"
 
 
@@ -94,7 +95,7 @@ broadcast_grad_to_shape :: proc(grad_arr: ^Array_Dyn($T), target_shape: []uint) 
 	// Find max rank needed because broadcasting may have increased dimensions
 	// from either input, and we need to handle all cases
 	grad_shape := grad_arr.shape
-	max_dims := max(len(grad_shape), len(target_shape))
+	max_dims := builtin.max(len(grad_shape), len(target_shape))
 
 	// Left-pad gradient shape with ones to match max rank. This is necessary
 	// because numpy-style broadcasting aligns arrays from the right, treating
