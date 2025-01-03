@@ -12,10 +12,8 @@ layer_relu_new :: proc($T: typeid) -> ^Layer_ReLU(T) {
 layer_relu_forward :: proc(l: ^Layer_ReLU($T), x: ^ar.Tensor(T)) -> ^ar.Tensor(T) {
 	relu := ar.clone(x.arrdata)
 	// Forward pass: max(0, x)
-	for i := 0; i < len(relu.data); i += 1 {
-		if relu.data[i] < 0 {
-			relu.data[i] = 0
-		}
+	for i in 0 ..< len(relu.data) {
+		relu.data[i] = max(0, relu.data[i])
 	}
 
 	return ar.autograd_make_op(
@@ -26,7 +24,7 @@ layer_relu_forward :: proc(l: ^Layer_ReLU($T), x: ^ar.Tensor(T)) -> ^ar.Tensor(T
 			relu_output := t.data // Relu forward pass output
 			input_tensor := t.deps[0] // Original input tensor
 
-			for i := 0; i < len(input_tensor.data); i += 1 {
+			for i in 0 ..< len(input_tensor.data) {
 				input_tensor.grad.data[i] += grad_output.data[i] * T(relu_output[i] > 0 ? 1 : 0)
 			}
 		},
