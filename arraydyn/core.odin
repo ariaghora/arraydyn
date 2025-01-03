@@ -116,7 +116,7 @@ clone :: proc(arr: ^Array_Dyn($T)) -> (res: ^Array_Dyn(T)) {
 // together. Takes into account that some dimensions may be empty (0) in which
 // case the total size will also be zero. This function does not care about strides
 // or how data is laid out in memory, it is just about the logical size.
-data_len :: proc(arr: ^Array_Dyn) -> uint {
+data_len :: proc(arr: ^Array_Dyn($T)) -> uint {
 	return _shape_to_size(arr.shape)
 }
 

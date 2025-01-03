@@ -126,18 +126,30 @@ sum :: proc {
 }
 
 sum_a :: proc(arr: ^Array_Dyn($T), keepdims := false) -> ^Array_Dyn(T) {
-	size := uint(1)
-	for s in arr.shape {
-		size *= s
-	}
 	out_shape := keepdims ? make([]uint, len(arr.shape)) : []uint{1}
-	if keepdims {
-		for i in 0 ..< len(arr.shape) {
-			out_shape[i] = 1
+	defer if keepdims do delete(out_shape)
+
+	// Create result array with appropriate shape
+	result := _array_alloc(T, out_shape)
+
+	// Sum all elements directly
+	sum: T = 0
+	if arr.contiguous {
+		// Fast path for contiguous data
+		for val in arr.data {
+			sum += val
 		}
-		defer delete(out_shape)
+	} else {
+		// Handle non-contiguous case
+		size := _shape_to_size(arr.shape)
+		for i: uint = 0; i < size; i += 1 {
+			idx := _compute_strided_index(arr.shape, arr.strides, i)
+			sum += arr.data[idx]
+		}
 	}
-	return reduce_along_axis(arr, proc(x, y: T) -> T {return x + y}, T(0), 0, keepdims)
+
+	result.data[0] = sum
+	return result
 }
 
 sum_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {
@@ -227,23 +239,31 @@ mean :: proc {
 }
 
 mean_a :: proc(arr: ^Array_Dyn($T), keepdims := false) -> ^Array_Dyn(T) {
-	size := uint(1)
-	for s in arr.shape {
-		size *= s
-	}
-	n := T(size)
 	out_shape := keepdims ? make([]uint, len(arr.shape)) : []uint{1}
-	if keepdims {
-		for i in 0 ..< len(arr.shape) {
-			out_shape[i] = 1
+	defer if keepdims do delete(out_shape)
+
+	// Create result array with appropriate shape
+	result := _array_alloc(T, out_shape)
+
+	// Calculate mean of all elements
+	sum: T = 0
+	if arr.contiguous {
+		// Fast path for contiguous data
+		for val in arr.data {
+			sum += val
 		}
-		defer delete(out_shape)
+	} else {
+		// Handle non-contiguous case
+		size := _shape_to_size(arr.shape)
+		for i: uint = 0; i < size; i += 1 {
+			idx := _compute_strided_index(arr.shape, arr.strides, i)
+			sum += arr.data[idx]
+		}
 	}
-	s := sum_axis_a(arr, 0, keepdims = keepdims)
-	for i in 0 ..< len(s.data) {
-		s.data[i] /= n
-	}
-	return s
+
+	n := T(data_len(arr))
+	result.data[0] = sum / n
+	return result
 }
 
 mean_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {

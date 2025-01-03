@@ -236,6 +236,7 @@ test_sum_autograd :: proc(t: ^testing.T) {
 		defer ar.tensor_release(x)
 
 		y := ar.sum(x) // Global sum: 21
+		testing.expect_value(t, y.data[0], 21) // Verify sum is 21
 		defer ar.tensor_release(y)
 
 		ar.backward(y)
