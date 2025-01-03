@@ -115,9 +115,49 @@ _reduce :: proc(
 	return result
 }
 
-sum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+sum :: proc {
+	sum_a,
+	sum_t,
+}
+
+sum_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
 	return _reduce(arr, proc(x, y: T) -> T {return x + y}, T(0), axis, keepdims)
 }
+
+sum_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
+	// Create tensors to store axis and keepdims values
+	axis_tensor := new_with_init([]T{T(axis)}, {1})
+	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
+	// Defer tensor release because these tensors are added to deps in autograd_make_op
+	// which increments their ref_count. We need to release our local reference to them
+	// after autograd_make_op returns but before this function returns.
+	defer tensor_release(axis_tensor, keepdims_tensor)
+
+	return autograd_make_op(
+		deps = []^Tensor(T){t, axis_tensor, keepdims_tensor},
+		new_arrdata = sum_a(t.arrdata, axis, keepdims),
+		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
+			input_tensor := tensor.deps[0]
+			// Extract cached values from deps
+			axis := int(tensor.deps[1].data[0])
+			keepdims := tensor.deps[2].data[0] > 0
+
+			// Create output shape for the gradient based on keepdims
+			out_shape := _reduction_shape(input_tensor.shape, axis, keepdims)
+			defer delete(out_shape)
+
+			// Expand gradient back to input shape
+			expanded_grad := broadcast_grad_to_shape(grad_output, input_tensor.shape)
+
+			// Add to existing gradient
+			old_grad := input_tensor.grad
+			input_tensor.grad = add(old_grad, expanded_grad)
+			array_free(old_grad, expanded_grad)
+		},
+		backward_fn_name = "sum_backward",
+	)
+}
+
 
 // NOTE(Aria): We chose name `maximum` and `minimum` to avoid collision with Odin's builtin
 maximum :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {

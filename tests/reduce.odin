@@ -106,3 +106,40 @@ test_sum :: proc(t: ^testing.T) {
 		testing.expect(t, slice.equal(res1, []i32{5, 7, 9})) // 1+2+3=6, 4+5+6=15
 	}
 }
+
+@(test)
+test_sum_autograd :: proc(t: ^testing.T) {
+	// Test basic sum gradient
+	{
+		x := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		ar.set_requires_grad(x, true)
+		defer ar.tensor_release(x)
+
+		y := ar.sum(x, 1) // Sum rows: [6, 15]
+		defer ar.tensor_release(y)
+
+		ar.backward(y)
+
+		expected_grad := ar._new_with_init([]f32{1, 1, 1, 1, 1, 1}, []uint{2, 3})
+		defer ar.array_free(expected_grad)
+
+		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+	}
+
+	// Test sum gradient with keepdims
+	{
+		x := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6}, []uint{2, 3})
+		ar.set_requires_grad(x, true)
+		defer ar.tensor_release(x)
+
+		y := ar.sum(x, 0, keepdims = true) // Sum columns with keepdims: [[5, 7, 9]]
+		defer ar.tensor_release(y)
+
+		ar.backward(y)
+
+		expected_grad := ar._new_with_init([]f32{1, 1, 1, 1, 1, 1}, []uint{2, 3})
+		defer ar.array_free(expected_grad)
+
+		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
+	}
+}
