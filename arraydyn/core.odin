@@ -1,6 +1,8 @@
 package arraydyn
 
 import "core:fmt"
+import "core:math"
+import "core:math/rand"
 import "core:mem"
 import "core:slice"
 import "core:strings"
@@ -133,8 +135,6 @@ ones :: proc($T: typeid, shape: []uint) -> (res: ^Tensor(T)) {
 }
 
 // Create an array with normally-distributed random values
-import "core:math"
-import "core:math/rand"
 _randn :: proc($T: typeid, shape: []uint, mean, stddev: T) -> (res: ^Array_Dyn(T)) {
 	res = _array_alloc(T, shape)
 	for _, i in res.data {

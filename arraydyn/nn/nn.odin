@@ -1,6 +1,7 @@
 package nn
 
 import ar "../"
+import "core:math"
 
 Layer_Linear :: struct($T: typeid) {
 	weight:   ^ar.Tensor(T),
@@ -10,7 +11,11 @@ Layer_Linear :: struct($T: typeid) {
 
 layer_linear_new :: proc($T: typeid, in_size, out_size: uint, use_bias: bool) -> ^Layer_Linear(T) {
 	res := new(Layer_Linear(T))
-	res.weight = ar.randn(T, {in_size, out_size}, T(0), T(1))
+
+	// Normal Xavier
+	stddev := T(math.sqrt(2.0 / T(in_size + out_size)))
+	res.weight = ar.randn(T, {in_size, out_size}, T(0), stddev)
+
 	res.use_bias = use_bias
 	if use_bias {res.bias = ar.zeros(T, {out_size})}
 	return res
