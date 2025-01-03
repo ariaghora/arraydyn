@@ -263,6 +263,7 @@ transpose :: proc(a: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return result
 }
 
+import "core:fmt"
 matmul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	if len(a.shape) != 2 {
 		panic("matmul is only for tensor with 2 dimensions (matrix)")
@@ -273,6 +274,13 @@ matmul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	}
 
 	m, k, n := a.shape[0], a.shape[1], b.shape[1]
+	if b.shape[0] != k {
+		fmt.panicf(
+			"matmul shape mismatch: a = %v, b = %v. dim 1 of a must match dim 0 of b",
+			a.shape,
+			b.shape,
+		)
+	}
 	// Result will be m x n
 	result := _array_alloc(T, []uint{m, n})
 

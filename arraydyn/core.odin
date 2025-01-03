@@ -14,7 +14,6 @@ import "core:strings"
 // single slice. A stride array is used to map N-dimensional coordinates to linear
 // indices in the data array. The contiguous flag indicates if the array is stored
 // in memory without gaps.
-@(private = "package")
 Array_Dyn :: struct($T: typeid) {
 	data:       []T,
 	shape:      []uint,

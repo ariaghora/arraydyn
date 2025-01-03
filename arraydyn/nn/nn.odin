@@ -15,9 +15,13 @@ layer_linear_new :: proc($T: typeid, in_size, out_size: uint, use_bias: bool) ->
 	// Normal Xavier
 	stddev := T(math.sqrt(2.0 / T(in_size + out_size)))
 	res.weight = ar.randn(T, {in_size, out_size}, T(0), stddev)
+	ar.set_requires_grad(res.weight, true)
 
 	res.use_bias = use_bias
-	if use_bias {res.bias = ar.zeros(T, {out_size})}
+	if use_bias {
+		res.bias = ar.zeros(T, {out_size})
+		ar.set_requires_grad(res.bias, true)
+	}
 	return res
 }
 
