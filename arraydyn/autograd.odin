@@ -51,40 +51,32 @@ backward_with_grad :: proc(t: ^Tensor($T), grad: ^Array_Dyn(T)) {
 		return
 	}
 
+	// Skip if already visited
+	if t.visited {
+		return
+	}
+
+	// Mark as visited
+	t.visited = true
+
 	// Call backward function to compute gradients for dependencies
 	t.backward_fn(t, grad)
 
 	// Recursively propagate gradients through dependencies
 	for dep in t.deps {
 		if dep.requires_grad {
-			backward_with_grad(dep, grad)
+			backward_with_grad(dep, dep.grad)
 		}
 	}
+
+	// Reset visited flag after we're done with this subtree
+	// t.visited = false
 }
 
 backward_no_grad :: proc(t: ^Tensor($T)) {
 	grad := _ones(T, t.shape)
-
-	// Set initial gradient
-	if t.requires_grad {
-		array_free(t.grad)
-		t.grad = grad
-	}
-
-	// If there's no backward function or no dependencies, nothing more to do
-	if t.backward_fn == nil || len(t.deps) == 0 {
-		return
-	}
-
-	// Call backward function to compute gradients for dependencies
-	t.backward_fn(t, grad)
-
-	// Recursively propagate gradients through dependencies
-	for dep in t.deps {
-		if dep.requires_grad {
-			backward_with_grad(dep, grad)
-		}
-	}
+	defer array_free(grad)
+	backward_with_grad(t, grad)
 }
 
 
@@ -158,4 +150,14 @@ broadcast_grad_to_shape :: proc(grad_arr: ^Array_Dyn($T), target_shape: []uint) 
 	array_free(grad)
 
 	return result
+}
+
+zero_grad :: proc(t: ^Tensor($T), set_to_none := false) {
+	if t.requires_grad && t.grad != nil {
+		// Zero out existing array in-place
+		for i := 0; i < len(t.grad.data); i += 1 {
+			t.grad.data[i] = 0
+		}
+	}
+	t.visited = false
 }

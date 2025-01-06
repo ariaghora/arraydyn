@@ -1,6 +1,7 @@
 package arraydyn
 
 import "base:builtin"
+import "core:fmt"
 import "core:math"
 import "core:slice"
 
@@ -264,7 +265,6 @@ transpose :: proc(a: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return result
 }
 
-import "core:fmt"
 matmul_a :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	if len(a.shape) != 2 {
 		panic("matmul is only for tensor with 2 dimensions (matrix)")

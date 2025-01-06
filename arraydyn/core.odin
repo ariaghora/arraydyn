@@ -29,6 +29,7 @@ Tensor :: struct($T: typeid) {
 	using arrdata:    ^Array_Dyn(T),
 	grad:             ^Array_Dyn(T),
 	deps:             [dynamic]^Tensor(T),
+	visited:          bool,
 	requires_grad:    bool,
 	backward_fn:      proc(_: ^Tensor(T), _: ^Array_Dyn(T)),
 	backward_fn_name: string,

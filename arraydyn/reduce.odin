@@ -163,13 +163,17 @@ sum_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {
 			input_tensor := tensor.deps[0]
 			keepdims := tensor.deps[1].data[0] > 0
 
-			// Expand gradient back to input shape
-			expanded_grad := broadcast_grad_to_shape(grad_output, input_tensor.shape)
+			// grad is necessarily a 0-tensor, so each input element
+			// contribute that much
+			ones_arr := _ones(T, input_tensor.shape)
+			defer array_free(ones_arr)
+			local_grad := mul(ones_arr, grad_output)
+			defer array_free(local_grad)
 
 			// Add to existing gradient
 			old_grad := input_tensor.grad
-			input_tensor.grad = add(old_grad, expanded_grad)
-			array_free(old_grad, expanded_grad)
+			input_tensor.grad = add(old_grad, local_grad)
+			array_free(old_grad)
 		},
 		backward_fn_name = "sum_backward",
 	)

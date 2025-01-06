@@ -2,6 +2,7 @@ package tests
 
 import ar "../arraydyn"
 
+import "core:fmt"
 import "core:math"
 import "core:slice"
 import "core:testing"
@@ -60,6 +61,36 @@ test_add_autograd :: proc(t: ^testing.T) {
 }
 
 @(test)
+test_add_broadacst_backward :: proc(t: ^testing.T) {
+	// Test broadcast add backward when adding a scalar to a matrix
+	x := ar.new_with_init([]f32{1, 2, 3, 4}, {2, 2})
+	b := ar.new_with_init([]f32{10}, {1})
+	ar.set_requires_grad(x, true)
+	ar.set_requires_grad(b, true)
+	defer ar.tensor_release(x, b)
+
+	c := ar.add(x, b)
+	defer ar.tensor_release(c)
+
+	// Sum output to scalar for backward
+	total := ar.sum(c)
+	defer ar.tensor_release(total)
+
+	// Do backward pass
+	ar.backward(total)
+
+	// Gradient for b should be sum across broadcast dimensions
+	testing.expect(
+		t,
+		slice.equal(b.grad.data, []f32{4}),
+		fmt.tprintf("%v vs %v", b.grad.data, []f32{4}),
+	) // 2x2 broadcasted = grad of 4
+
+	// Gradient for x should be ones since we summed
+	testing.expect(t, slice.equal(x.grad.data, []f32{1, 1, 1, 1}))
+}
+
+@(test)
 test_leak_from_complex_ops_inside_fn :: proc(t: ^testing.T) {
 	// Create input tensors
 	a := ar.new_with_init([]i32{1, 2, 3, 4}, {2, 2})
@@ -92,8 +123,16 @@ test_leak_from_complex_ops_inside_fn :: proc(t: ^testing.T) {
 	expected_grad_y := ar.new_with_init([]i32{2, 2, 2, 2}, {2, 2})
 	defer ar.tensor_release(expected_grad_y)
 
-	testing.expect(t, slice.equal(a.grad.data, expected_grad_x.data))
-	testing.expect(t, slice.equal(b.grad.data, expected_grad_y.data))
+	testing.expect(
+		t,
+		slice.equal(a.grad.data, expected_grad_x.data),
+		fmt.tprintf("%v vs %v", a.grad.data, expected_grad_x.data),
+	)
+	testing.expect(
+		t,
+		slice.equal(b.grad.data, expected_grad_y.data),
+		fmt.tprintf("%v vs %v", b.grad.data, expected_grad_y.data),
+	)
 }
 
 @(test)
