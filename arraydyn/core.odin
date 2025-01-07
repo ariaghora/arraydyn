@@ -343,6 +343,7 @@ tensor_release_many :: proc(t: ^Tensor($T), rest: ..^Tensor(T)) {
 }
 
 array_get :: proc {
+    _array_get_1d,
 	_array_get_2d,
 	_array_get_3d,
 	_array_get_4d,

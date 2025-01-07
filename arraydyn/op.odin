@@ -350,3 +350,7 @@ div :: proc(a, b: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 exp :: proc(arr: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return _array_unary_op(arr, #force_inline proc(x: T) -> T {return math.exp(x)})
 }
+
+log :: proc(arr: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
+	return _array_unary_op(arr, #force_inline proc(x: T) -> T {return math.ln(x)})
+}
