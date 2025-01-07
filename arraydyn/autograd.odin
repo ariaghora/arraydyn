@@ -68,9 +68,6 @@ backward_with_grad :: proc(t: ^Tensor($T), grad: ^Array_Dyn(T)) {
 			backward_with_grad(dep, dep.grad)
 		}
 	}
-
-	// Reset visited flag after we're done with this subtree
-	// t.visited = false
 }
 
 backward_no_grad :: proc(t: ^Tensor($T)) {
