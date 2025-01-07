@@ -2,6 +2,7 @@ package nn
 
 import ar "../"
 import "core:math"
+import "core:math/rand"
 
 Layer_Linear :: struct($T: typeid) {
 	weight:   ^ar.Tensor(T),
@@ -12,9 +13,12 @@ Layer_Linear :: struct($T: typeid) {
 layer_linear_new :: proc($T: typeid, in_size, out_size: uint, use_bias: bool) -> ^Layer_Linear(T) {
 	res := new(Layer_Linear(T))
 
-	// Normal Xavier
-	stddev := T(math.sqrt(2.0 / T(in_size + out_size)))
-	res.weight = ar.randn(T, {in_size, out_size}, T(0), stddev)
+	// Xavier
+	denom := math.sqrt(2.0 / T(in_size + out_size))
+	res.weight = ar._tensor_from_array(ar._array_alloc(T, {in_size, out_size}))
+	for i in 0 ..< len(res.weight.arrdata.data) {
+		res.weight.arrdata.data[i] = T((rand.float32() * 2 - 1) * denom)
+	}
 	ar.set_requires_grad(res.weight, true)
 
 	res.use_bias = use_bias
