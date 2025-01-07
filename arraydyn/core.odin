@@ -1,5 +1,6 @@
 package arraydyn
 
+import "base:intrinsics"
 import "core:fmt"
 import "core:math"
 import "core:math/rand"
@@ -14,7 +15,7 @@ import "core:strings"
 // single slice. A stride array is used to map N-dimensional coordinates to linear
 // indices in the data array. The contiguous flag indicates if the array is stored
 // in memory without gaps.
-Array_Dyn :: struct($T: typeid) {
+Array_Dyn :: struct($T: typeid) where intrinsics.type_is_numeric(T) {
 	data:       []T,
 	shape:      []uint,
 	strides:    []uint,
@@ -25,7 +26,7 @@ Array_Dyn :: struct($T: typeid) {
 // It wraps an Array_Dyn for data storage and adds gradient computation functionality.
 // The struct tracks computational dependencies through a dynamic array of dependencies
 // and supports automatic gradient propagation via a backward function.
-Tensor :: struct($T: typeid) {
+Tensor :: struct($T: typeid) where intrinsics.type_is_numeric(T) {
 	using arrdata:    ^Array_Dyn(T),
 	grad:             ^Array_Dyn(T),
 	deps:             [dynamic]^Tensor(T),
