@@ -8,13 +8,9 @@ import "core:testing"
 
 @(test)
 test_layer_relu :: proc(t: ^testing.T) {
-	// Test basic functionality
-	relu := nn.layer_relu_new(f32)
-	defer nn.layer_relu_free(relu)
-
 	// Test with mixed positive and negative values
 	x := ar.new_with_init([]f32{-2, -1, 0, 1, 2}, {5})
-	res := nn.layer_relu_forward(relu, x)
+	res := nn.relu(x)
 	defer ar.tensor_release(x, res)
 
 	// Expected: [0, 0, 0, 1, 2]
@@ -31,18 +27,12 @@ test_layer_relu :: proc(t: ^testing.T) {
 @(test)
 test_layer_relu_backward :: proc(t: ^testing.T) {
 	// Test gradient computation
-	relu := nn.layer_relu_new(f32)
-	defer nn.layer_relu_free(relu)
-
 	// Input tensor with requires_grad
 	x := ar.new_with_init([]f32{-2, -1, 0, 1, 2}, {5})
 	ar.set_requires_grad(x, true)
 
 	// Forward pass
-	out := nn.layer_relu_forward(relu, x)
-
-	// Create gradient for backward pass
-	// out.grad.data = slice.clone([]f32{1, 1, 1, 1, 1})
+	out := nn.relu(x)
 
 	// Backward pass
 	ar.backward(out)
@@ -68,11 +58,8 @@ test_layer_relu_backward :: proc(t: ^testing.T) {
 @(test)
 test_layer_relu_zero :: proc(t: ^testing.T) {
 	// Test with all zeros
-	relu := nn.layer_relu_new(f32)
-	defer nn.layer_relu_free(relu)
-
 	x := ar.new_with_init([]f32{0, 0, 0}, {3})
-	res := nn.layer_relu_forward(relu, x)
+	res := nn.relu(x)
 	defer ar.tensor_release(x, res)
 
 	// Expected: all zeros remain zeros
@@ -88,11 +75,8 @@ test_layer_relu_zero :: proc(t: ^testing.T) {
 @(test)
 test_layer_relu_positive :: proc(t: ^testing.T) {
 	// Test with all positive values
-	relu := nn.layer_relu_new(f32)
-	defer nn.layer_relu_free(relu)
-
 	x := ar.new_with_init([]f32{1, 2, 3}, {3})
-	res := nn.layer_relu_forward(relu, x)
+	res := nn.relu(x)
 	defer ar.tensor_release(x, res)
 
 	// Expected: positive values should remain unchanged
