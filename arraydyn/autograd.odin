@@ -149,7 +149,12 @@ broadcast_grad_to_shape :: proc(grad_arr: ^Array_Dyn($T), target_shape: []uint) 
 	return result
 }
 
-zero_grad :: proc(t: ^Tensor($T), set_to_none := false) {
+zero_grad :: proc {
+	zero_grad_one,
+	zero_grad_many,
+}
+
+zero_grad_one :: proc(t: ^Tensor($T)) {
 	if t.requires_grad && t.grad != nil {
 		// Zero out existing array in-place
 		for i := 0; i < len(t.grad.data); i += 1 {
@@ -157,4 +162,11 @@ zero_grad :: proc(t: ^Tensor($T), set_to_none := false) {
 		}
 	}
 	t.visited = false
+}
+
+zero_grad_many :: proc(t: ^Tensor($T), tensors: ..^Tensor(T)) {
+	zero_grad(t)
+	for t in tensors {
+		zero_grad(t)
+	}
 }

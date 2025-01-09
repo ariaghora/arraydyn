@@ -2,23 +2,17 @@ package nn
 
 import ar "../"
 
-Layer_ReLU :: struct($T: typeid) {}
 
-layer_relu_new :: proc($T: typeid) -> ^Layer_ReLU(T) {
-	res := new(Layer_ReLU(T))
-	return res
-}
-
-layer_relu_forward :: proc(l: ^Layer_ReLU($T), x: ^ar.Tensor(T)) -> ^ar.Tensor(T) {
-	relu := ar.clone(x.arrdata)
+relu :: proc(x: ^ar.Tensor($T)) -> ^ar.Tensor(T) {
+	arrdata := ar.clone(x.arrdata)
 	// Forward pass: max(0, x)
-	for i in 0 ..< len(relu.data) {
-		relu.data[i] = max(0, relu.data[i])
+	for i in 0 ..< len(arrdata.data) {
+		arrdata.data[i] = max(0, arrdata.data[i])
 	}
 
 	return ar.autograd_make_op(
 		deps = []^ar.Tensor(T){x},
-		new_arrdata = relu,
+		new_arrdata = arrdata,
 		backward_fn = proc(t: ^ar.Tensor(T), grad_output: ^ar.Array_Dyn(T)) {
 			// ReLU derivative: 1 if x > 0, 0 otherwise
 			relu_output := t.data // Relu forward pass output
@@ -30,8 +24,4 @@ layer_relu_forward :: proc(l: ^Layer_ReLU($T), x: ^ar.Tensor(T)) -> ^ar.Tensor(T
 		},
 		backward_fn_name = "relu_backward",
 	)
-}
-
-layer_relu_free :: proc(l: ^Layer_ReLU($T)) {
-	free(l)
 }
