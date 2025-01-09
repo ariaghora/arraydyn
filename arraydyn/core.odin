@@ -20,6 +20,7 @@ Array_Dyn :: struct($T: typeid) where intrinsics.type_is_numeric(T) {
 	shape:      []uint,
 	strides:    []uint,
 	contiguous: bool,
+	own_data:   bool,
 }
 
 // Tensor represents a multidimensional array with automatic differentiation capabilities.
@@ -54,6 +55,7 @@ _array_alloc :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	res.shape = make([]uint, len(shape))
 	res.strides = make([]uint, len(shape))
 	res.contiguous = true
+	res.own_data = true
 
 	// initialize shape and strides
 	copy(res.shape, shape)
@@ -100,14 +102,20 @@ _get_strided_data :: proc(arr: ^Array_Dyn($T), shape: []uint = nil, strides: []u
 // Deep copy of array data. The copy will be an exact replica of the original
 // array, with exactly the same data, shape, strides and contiguous flag. The
 // resulting array will be completely independent from the source.
-clone :: proc(arr: ^Array_Dyn($T)) -> (res: ^Array_Dyn(T)) {
+clone :: proc(arr: ^Array_Dyn($T), deep: bool = false) -> (res: ^Array_Dyn(T)) {
 	res = new(Array_Dyn(T))
-	res.data = make([]T, len(arr.data))
+
+	if deep {
+		res.data = make([]T, len(arr.data))
+		copy(res.data, arr.data)
+	} else {
+		res.data = arr.data
+	}
+
 	res.shape = make([]uint, len(arr.shape))
 	res.strides = make([]uint, len(arr.strides))
 	res.contiguous = arr.contiguous
 
-	copy(res.data, arr.data)
 	copy(res.shape, arr.shape)
 	copy(res.strides, arr.strides)
 
@@ -297,7 +305,9 @@ array_free :: proc {
 
 @(private = "file")
 array_free_one :: proc(arr: ^Array_Dyn($T)) {
-	delete(arr.data)
+	if arr.own_data {
+		delete(arr.data)
+	}
 	delete(arr.shape)
 	delete(arr.strides)
 	free(arr)
@@ -343,7 +353,7 @@ tensor_release_many :: proc(t: ^Tensor($T), rest: ..^Tensor(T)) {
 }
 
 array_get :: proc {
-    _array_get_1d,
+	_array_get_1d,
 	_array_get_2d,
 	_array_get_3d,
 	_array_get_4d,
