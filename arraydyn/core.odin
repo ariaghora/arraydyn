@@ -99,9 +99,10 @@ _get_strided_data :: proc(arr: ^Array_Dyn($T), shape: []uint = nil, strides: []u
 	return data
 }
 
-// Deep copy of array data. The copy will be an exact replica of the original
-// array, with exactly the same data, shape, strides and contiguous flag. The
-// resulting array will be completely independent from the source.
+// Creates a copy of an array with either shared or independent data storage.
+// If deep=true, creates a completely independent copy with its own data allocation.
+// If deep=false, creates a view that shares the underlying data with the source array.
+// In both cases, shape and strides are independently copied.
 clone :: proc(arr: ^Array_Dyn($T), deep: bool = false) -> (res: ^Array_Dyn(T)) {
 	res = new(Array_Dyn(T))
 
