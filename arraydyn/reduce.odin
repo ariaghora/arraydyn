@@ -279,6 +279,8 @@ mean_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {
 		new_arrdata = mean_a(t.arrdata, keepdims),
 		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
 			input_tensor := tensor.deps[0]
+			if !input_tensor.requires_grad {return}
+
 			keepdims := tensor.deps[1].data[0] > 0
 			size := uint(1)
 			for s in input_tensor.shape {
@@ -324,6 +326,8 @@ mean_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) 
 		new_arrdata = mean_axis_a(t.arrdata, axis, keepdims),
 		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
 			input_tensor := tensor.deps[0]
+			if !input_tensor.requires_grad {return}
+
 			axis := int(tensor.deps[1].data[0])
 			keepdims := tensor.deps[2].data[0] > 0
 			n := T(input_tensor.shape[axis])
@@ -344,5 +348,95 @@ mean_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) 
 			array_free(old_grad, expanded_grad)
 		},
 		backward_fn_name = "mean_backward",
+	)
+}
+
+argmax :: proc {
+	argmax_axis_a,
+	argmax_axis_t,
+}
+
+// Returns the indices of maximum values along a specified axis
+argmax_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims: bool = false) -> ^Array_Dyn(T) {
+	if axis < 0 || axis >= len(arr.shape) {
+		panic("Axis out of bounds")
+	}
+
+	// Get shape for result array, handling keepdims case
+	out_shape := reduction_shape(arr.shape, axis, keepdims)
+	defer delete(out_shape)
+	result := _array_alloc(T, out_shape)
+
+	// Calculate sizes for iteration
+	outer_size: uint = 1
+	for i in 0 ..< axis {
+		outer_size *= arr.shape[i]
+	}
+
+	inner_size: uint = 1
+	for i in (axis + 1) ..< len(arr.shape) {
+		inner_size *= arr.shape[i]
+	}
+
+	axis_size := arr.shape[axis]
+
+	// For each position, find index of maximum value
+	if arr.contiguous {
+		// Fast path for contiguous arrays
+		for outer in 0 ..< outer_size {
+			for inner in 0 ..< inner_size {
+				out_idx := outer * inner_size + inner
+				max_val := builtin.min(T)
+				max_idx := T(0)
+
+				// Find maximum value and its index along the axis
+				for a in 0 ..< axis_size {
+					idx := outer * (axis_size * inner_size) + a * inner_size + inner
+					val := arr.data[idx]
+					if val > max_val {
+						max_val = val
+						max_idx = T(a)
+					}
+				}
+				result.data[out_idx] = max_idx
+			}
+		}
+	} else {
+		// Handle non-contiguous arrays
+		for outer in 0 ..< outer_size {
+			for inner in 0 ..< inner_size {
+				out_idx := outer * inner_size + inner
+				max_val := builtin.min(T)
+				max_idx := T(0)
+
+				// Find maximum value and its index along the axis
+				for a in 0 ..< axis_size {
+					flat_idx := outer * (axis_size * inner_size) + a * inner_size + inner
+					src_idx := _compute_strided_index(arr.shape, arr.strides, flat_idx)
+					val := arr.data[src_idx]
+					if val > max_val {
+						max_val = val
+						max_idx = T(a)
+					}
+				}
+				result.data[out_idx] = max_idx
+			}
+		}
+	}
+
+	return result
+}
+
+argmax_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims: bool = false) -> ^Tensor(T) {
+	// Create tensors to store axis and keepdims values
+	axis_tensor := new_with_init([]T{T(axis)}, {1})
+	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
+	defer tensor_release(axis_tensor, keepdims_tensor)
+
+	return autograd_make_op(
+		deps = []^Tensor(T){t, axis_tensor, keepdims_tensor},
+		new_arrdata = argmax_axis_a(t.arrdata, axis, keepdims),
+		backward_fn = nil,
+		backward_fn_name = "argmax_backward",
 	)
 }

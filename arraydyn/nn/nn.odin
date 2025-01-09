@@ -31,9 +31,9 @@ layer_linear_new :: proc($T: typeid, in_size, out_size: uint, use_bias: bool) ->
 
 layer_linear_forward :: proc(l: ^Layer_Linear($T), x: ^ar.Tensor(T)) -> ^ar.Tensor(T) {
 	affine := ar.matmul(x, l.weight)
-	defer ar.tensor_release(affine)
 	if l.use_bias {
 		affine_plus_bias := ar.add(affine, l.bias)
+		ar.tensor_release(affine)
 		return affine_plus_bias
 	}
 	return affine

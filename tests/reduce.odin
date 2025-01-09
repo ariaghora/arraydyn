@@ -310,3 +310,109 @@ test_mean_autograd :: proc(t: ^testing.T) {
 		testing.expect(t, slice.equal(x.grad.data, expected_grad.data))
 	}
 }
+
+@(test)
+test_argmax :: proc(t: ^testing.T) {
+	// Test case 1: Simple 2D array, axis 1
+	{
+		data := []f32{1, 5, 3, 2, 8, 4, 7, 3, 6}
+		arr := ar._new_with_init(data, []uint{3, 3})
+		indices := ar.argmax_axis_a(arr, axis = 1, keepdims = false)
+		defer ar.array_free(arr, indices)
+
+		expected := []f32{1, 1, 0} // Expected indices of max values
+		testing.expect_value(t, indices.shape[0], uint(3))
+		for i := 0; i < len(expected); i += 1 {
+			testing.expect_value(t, indices.data[i], expected[i])
+		}
+	}
+
+	// Test case 2: 2D array with obvious max positions, axis 0
+	{
+		data := []f32{1, 9, 3, 4, 2, 8}
+		arr := ar._new_with_init(data, []uint{2, 3})
+		indices := ar.argmax_axis_a(arr, axis = 0, keepdims = false)
+		defer ar.array_free(arr, indices)
+
+		expected := []f32{1, 0, 1} // Max along columns
+		testing.expect_value(t, indices.shape[0], uint(3))
+		for i := 0; i < len(expected); i += 1 {
+			testing.expect_value(t, indices.data[i], expected[i])
+		}
+	}
+
+	// Test case 3: 1D array
+	{
+		data := []f32{3, 1, 4, 1, 5, 9, 2}
+		arr := ar._new_with_init(data, []uint{7})
+		indices := ar.argmax_axis_a(arr, axis = 0, keepdims = false)
+		defer ar.array_free(arr, indices)
+
+		expected := []f32{5} // Max at index 5 (value 9)
+		testing.expect_value(t, indices.data[0], expected[0])
+	}
+
+	// Test case 4: Test keepdims=true
+	{
+		data := []f32{1, 5, 3}
+		arr := ar._new_with_init(data, []uint{1, 3})
+		indices := ar.argmax_axis_a(arr, axis = 1, keepdims = true)
+		defer ar.array_free(arr, indices)
+
+		// Shape should be [1, 1] when keepdims=true
+		testing.expect_value(t, len(indices.shape), 2)
+		testing.expect_value(t, indices.shape[0], uint(1))
+		testing.expect_value(t, indices.shape[1], uint(1))
+		testing.expect_value(t, indices.data[0], f32(1)) // Max at index 1 (value 5)
+	}
+
+	// Test case 5: 3D array in CHW format (3 channels, 2x2 image)
+	{
+		// Shape: [3, 2, 2] (C=3, H=2, W=2)
+		// Channel 0: [[1, 2],
+		//            [3, 4]]
+		// Channel 1: [[6, 5],
+		//            [4, 3]]
+		// Channel 2: [[2, 1],
+		//            [5, 2]]
+		data := []f32 {
+			// Channel 0
+			1,
+			2,
+			3,
+			4,
+			// Channel 1
+			6,
+			5,
+			4,
+			3,
+			// Channel 2
+			2,
+			1,
+			5,
+			2,
+		}
+		arr := ar._new_with_init(data, []uint{3, 2, 2})
+		indices := ar.argmax_axis_a(arr, axis = 0, keepdims = false) // axis 0 is channel
+		defer ar.array_free(arr, indices)
+
+		// Expected result shape: [2, 2] (H, W)
+		testing.expect_value(t, len(indices.shape), 2)
+		testing.expect_value(t, indices.shape[0], uint(2)) // Height
+		testing.expect_value(t, indices.shape[1], uint(2)) // Width
+
+		// Expected max channel indices:
+		// [[1, 1], -- Channel 1 has max (6,5)
+		//  [2, 0]] -- Channel 2 has max (5), Channel 0 has max (4)
+		expected := []f32 {
+			1,
+			1, // top row
+			2,
+			0, // bottom row
+		}
+
+		for i := 0; i < len(expected); i += 1 {
+			testing.expect_value(t, indices.data[i], expected[i])
+		}
+	}
+}
