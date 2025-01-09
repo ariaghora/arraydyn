@@ -424,7 +424,12 @@ _compute_strided_index :: #force_inline proc(shape, strides: []uint, idx: uint) 
 	}
 }
 
-reshape :: proc(arr: ^Array_Dyn($T), new_shape: []uint) -> ^Array_Dyn(T) {
+reshape :: proc {
+	reshape_a,
+	reshape_t,
+}
+
+reshape_a :: proc(arr: ^Array_Dyn($T), new_shape: []uint) -> (res: ^Array_Dyn(T)) {
 	// Check if total size matches
 	old_size := _shape_to_size(arr.shape)
 	new_size := _shape_to_size(new_shape)
@@ -432,9 +437,40 @@ reshape :: proc(arr: ^Array_Dyn($T), new_shape: []uint) -> ^Array_Dyn(T) {
 		panic(fmt.tprintf("Cannot reshape array of size %v to shape %v", old_size, new_shape))
 	}
 
-	res := _array_alloc(T, new_shape)
-	copy(res.data, arr.data) // Since we're just changing shape, data can be copied directly
+	res = clone(arr, deep = false)
+	delete(res.shape)
+	delete(res.strides)
+
+	// Create new shape and strides
+	res.shape = make([]uint, len(new_shape))
+	res.strides = make([]uint, len(new_shape))
+	copy(res.shape, new_shape)
+
+	// Calculate new strides
+	stride: uint = 1
+	for i := len(new_shape) - 1; i >= 0; i -= 1 {
+		res.strides[i] = stride
+		stride *= new_shape[i]
+	}
+
 	return res
+}
+
+reshape_t :: proc(t: ^Tensor($T), new_shape: []uint) -> ^Tensor(T) {
+	return autograd_make_op(
+		[]^Tensor(T){t},
+		new_arrdata = reshape_a(t.arrdata, new_shape),
+		backward_fn_name = "reshape_backward",
+		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
+			input := tensor.deps[0]
+			if input.requires_grad {
+				old_grad := input.grad
+				reshaped_grad := reshape_a(upstream_grad, input.shape)
+				input.grad = add(old_grad, reshaped_grad)
+				array_free(old_grad, reshaped_grad)
+			}
+		},
+	)
 }
 
 set_requires_grad :: proc(t: ^Tensor($T), val: bool) {

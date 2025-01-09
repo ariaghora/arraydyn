@@ -33,3 +33,30 @@ test_strided_data_extract :: proc(t: ^testing.T) {
 	testing.expect_value(t, transposed[2], 2)
 	testing.expect_value(t, transposed[3], 4)
 }
+
+@(test)
+test_reshape :: proc(t: ^testing.T) {
+	// Test basic reshape
+	x := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6}, {2, 3})
+	defer ar.tensor_release(x)
+	ar.set_requires_grad(x, true)
+
+	// Reshape to different dimensions
+	y := ar.reshape(x, {3, 2})
+	defer ar.tensor_release(y)
+
+	// Verify shape changed but data preserved
+	testing.expect(t, slice.equal(y.shape, []uint{3, 2}))
+	expected := []f32{1, 2, 3, 4, 5, 6}
+	testing.expect(t, slice.equal(y.data, expected))
+
+	// Test gradient flow
+	z := ar.sum(y)
+	defer ar.tensor_release(z)
+	ar.backward(z)
+
+	// Gradient should maintain original shape
+	testing.expect(t, slice.equal(x.grad.shape, []uint{2, 3}))
+	expected_grad := []f32{1, 1, 1, 1, 1, 1}
+	testing.expect(t, slice.equal(x.grad.data, expected_grad))
+}
