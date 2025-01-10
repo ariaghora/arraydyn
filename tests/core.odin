@@ -146,3 +146,21 @@ test_slice_3d :: proc(t: ^testing.T) {
 		fmt.tprintf("Expected s2[0,0,0] = 6, got %v", ar.array_get(s2.arrdata, 0, 0, 0)),
 	)
 }
+
+@(test)
+test_slice_and_reshape :: proc(t: ^testing.T) {
+	// Create 2D array
+	arr := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6, 7, 8, 9}, {3, 3})
+	defer ar.tensor_release(arr)
+
+	// Slice [0:2, 1:3] -> [[2, 3], [5, 6]]
+	sliced := ar.slice(arr, R{0, 2}, R{1, 3})
+	defer ar.tensor_release(sliced)
+
+
+	reshaped := ar.reshape(sliced, {4})
+	defer ar.tensor_release(reshaped)
+
+	expected := []f32{2, 3, 5, 6}
+	testing.expect(t, slice.equal(reshaped.data, expected))
+}

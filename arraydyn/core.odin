@@ -99,6 +99,22 @@ _get_strided_data :: proc(arr: ^Array_Dyn($T), shape: []uint = nil, strides: []u
 	return data
 }
 
+as_contiguous :: proc(arr: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
+	if arr.contiguous {
+		return clone(arr)
+	}
+
+	// Get data in contiguous layout
+	contiguous_data := _get_strided_data(arr)
+	defer delete(contiguous_data)
+
+	// Create new array with contiguous data
+	result := _array_alloc(T, arr.shape)
+	copy(result.data, contiguous_data)
+
+	return result
+}
+
 // Creates a copy of an array with either shared or independent data storage.
 // If deep=true, creates a completely independent copy with its own data allocation.
 // If deep=false, creates a view that shares the underlying data with the source array.
@@ -430,6 +446,10 @@ reshape :: proc {
 }
 
 reshape_a :: proc(arr: ^Array_Dyn($T), new_shape: []uint) -> (res: ^Array_Dyn(T)) {
+	// Ensure contigous
+	arr := as_contiguous(arr)
+	defer array_free(arr)
+
 	// Check if total size matches
 	old_size := _shape_to_size(arr.shape)
 	new_size := _shape_to_size(new_shape)
