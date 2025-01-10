@@ -473,6 +473,68 @@ reshape_t :: proc(t: ^Tensor($T), new_shape: []uint) -> ^Tensor(T) {
 	)
 }
 
+Range :: struct {
+	start, end: uint,
+}
+
+slice :: proc {
+	slice_a,
+	slice_t,
+}
+
+slice_a :: proc(arr: ^Array_Dyn($T), ranges: ..Range) -> ^Array_Dyn(T) {
+	// Validate inputs
+	if len(ranges) > len(arr.shape) {
+		panic("Too many ranges specified")
+	}
+
+	// For unspecified dimensions, use full range
+	new_shape := make([]uint, len(arr.shape))
+	new_strides := make([]uint, len(arr.shape))
+	offset: uint = 0
+
+	for i := 0; i < len(arr.shape); i += 1 {
+		if i < len(ranges) {
+			// Validate range
+			if ranges[i].end > arr.shape[i] {
+				panic("Slice index out of bounds")
+			}
+			if ranges[i].start > ranges[i].end {
+				panic("Invalid slice range: start > end")
+			}
+
+			// Calculate new shape and offset
+			new_shape[i] = ranges[i].end - ranges[i].start
+			new_strides[i] = arr.strides[i]
+			offset += ranges[i].start * arr.strides[i]
+		} else {
+			// Use full range for unspecified dimensions
+			new_shape[i] = arr.shape[i]
+			new_strides[i] = arr.strides[i]
+		}
+	}
+
+	// Create view into original data
+	result := new(Array_Dyn(T))
+	result.data = arr.data[offset:]
+	result.shape = new_shape
+	result.strides = new_strides
+	result.contiguous = false // Slicing generally creates non-contiguous view
+	result.own_data = false
+
+	return result
+}
+
+slice_t :: proc(t: ^Tensor($T), ranges: ..Range) -> ^Tensor(T) {
+	return autograd_make_op(
+		[]^Tensor(T){t},
+		new_arrdata = slice_a(t.arrdata, ..ranges),
+		backward_fn_name = "slice_backward",
+		backward_fn = nil,
+	)
+}
+
+
 set_requires_grad :: proc(t: ^Tensor($T), val: bool) {
 	if val {
 		// if val is true and  arr already requires grad, nothing to do

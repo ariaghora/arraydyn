@@ -1,6 +1,7 @@
 package tests
 
 import ar "../arraydyn"
+import "core:fmt"
 import "core:slice"
 import "core:testing"
 
@@ -59,4 +60,89 @@ test_reshape :: proc(t: ^testing.T) {
 	testing.expect(t, slice.equal(x.grad.shape, []uint{2, 3}))
 	expected_grad := []f32{1, 1, 1, 1, 1, 1}
 	testing.expect(t, slice.equal(x.grad.data, expected_grad))
+}
+
+R :: ar.Range
+
+@(test)
+test_slice_1d :: proc(t: ^testing.T) {
+	// Test 1D array slicing
+	arr := ar.new_with_init([]f32{1, 2, 3, 4, 5}, {5})
+	defer ar.tensor_release(arr)
+
+	// Slice [1:3] -> [2, 3]
+	s1 := ar.slice(arr, R{1, 3})
+	defer ar.tensor_release(s1)
+	testing.expect(
+		t,
+		slice.equal(s1.data[:2], []f32{2, 3}),
+		fmt.tprintf("Expected [2, 3], got %v", s1.data[:2]),
+	)
+	testing.expect(t, slice.equal(s1.shape, []uint{2}))
+
+	// Slice [2:5] -> [3, 4, 5]
+	s2 := ar.slice(arr, R{2, 5})
+	defer ar.tensor_release(s2)
+	testing.expect(
+		t,
+		slice.equal(s2.data[:3], []f32{3, 4, 5}),
+		fmt.tprintf("Expected [3, 4, 5], got %v", s2.data[:3]),
+	)
+}
+
+@(test)
+test_slice_2d :: proc(t: ^testing.T) {
+	// Test 2D array slicing
+	arr := ar.new_with_init([]f32{1, 2, 3, 4, 5, 6, 7, 8, 9}, {3, 3})
+	defer ar.tensor_release(arr)
+
+	// Slice rows [0:2] -> [[1, 2, 3], [4, 5, 6]]
+	s1 := ar.slice(arr, {0, 2})
+	defer ar.tensor_release(s1)
+	testing.expect(t, slice.equal(s1.shape, []uint{2, 3}))
+	testing.expect(
+		t,
+		ar.array_get(s1.arrdata, 1, 1) == 5,
+		fmt.tprintf("Expected s1[1,1] = 5, got %v", ar.array_get(s1.arrdata, 1, 1)),
+	)
+
+	// Slice both dims [1:3, 1:3] -> [[5, 6], [8, 9]]
+	s2 := ar.slice(arr, R{1, 3}, R{1, 3})
+	defer ar.tensor_release(s2)
+	testing.expect(t, slice.equal(s2.shape, []uint{2, 2}))
+	testing.expect(
+		t,
+		ar.array_get(s2.arrdata, 0, 0) == 5,
+		fmt.tprintf("Expected s2[0,0] = 5, got %v", ar.array_get(s2.arrdata, 0, 0)),
+	)
+}
+
+@(test)
+test_slice_3d :: proc(t: ^testing.T) {
+	// Test 3D array slicing
+	arr := ar.new_with_init(
+		[]f32{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+		{3, 2, 2}, // 3 planes, 2 rows each, 2 cols each
+	)
+	defer ar.tensor_release(arr)
+
+	// Slice first dimension [1:3] -> planes 2 and 3
+	s1 := ar.slice(arr, {1, 3})
+	defer ar.tensor_release(s1)
+	testing.expect(t, slice.equal(s1.shape, []uint{2, 2, 2}))
+	testing.expect(
+		t,
+		ar.array_get(s1.arrdata, 0, 0, 0) == 5,
+		fmt.tprintf("Expected s1[0,0,0] = 5, got %v", ar.array_get(s1.arrdata, 0, 0, 0)),
+	)
+
+	// Slice all dimensions [1:3, 0:1, 1:2] -> [[[6], [8]], [[10], [12]]]
+	s2 := ar.slice(arr, R{1, 3}, R{0, 1}, R{1, 2})
+	defer ar.tensor_release(s2)
+	testing.expect(t, slice.equal(s2.shape, []uint{2, 1, 1}))
+	testing.expect(
+		t,
+		ar.array_get(s2.arrdata, 0, 0, 0) == 6,
+		fmt.tprintf("Expected s2[0,0,0] = 6, got %v", ar.array_get(s2.arrdata, 0, 0, 0)),
+	)
 }
