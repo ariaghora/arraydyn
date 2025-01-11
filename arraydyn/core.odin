@@ -124,9 +124,11 @@ clone :: proc(arr: ^Array_Dyn($T), deep: bool = false) -> (res: ^Array_Dyn(T)) {
 
 	if deep {
 		res.data = make([]T, len(arr.data))
+		res.own_data = true
 		copy(res.data, arr.data)
 	} else {
 		res.data = arr.data
+		res.own_data = false
 	}
 
 	res.shape = make([]uint, len(arr.shape))
@@ -447,17 +449,15 @@ reshape :: proc {
 
 reshape_a :: proc(arr: ^Array_Dyn($T), new_shape: []uint) -> (res: ^Array_Dyn(T)) {
 	// Ensure contigous
-	arr := as_contiguous(arr)
-	defer array_free(arr)
+	res = as_contiguous(arr)
 
 	// Check if total size matches
-	old_size := _shape_to_size(arr.shape)
+	old_size := _shape_to_size(res.shape)
 	new_size := _shape_to_size(new_shape)
 	if old_size != new_size {
 		panic(fmt.tprintf("Cannot reshape array of size %v to shape %v", old_size, new_shape))
 	}
 
-	res = clone(arr, deep = false)
 	delete(res.shape)
 	delete(res.strides)
 
