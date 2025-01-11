@@ -355,11 +355,57 @@ log :: proc(arr: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return _array_unary_op(arr, #force_inline proc(x: T) -> T {return math.ln(x)})
 }
 
-softmax :: proc(arr: ^Array_Dyn($T), axis: uint) -> ^Array_Dyn(T) {
+softmax :: proc {
+	softmax_a,
+	softmax_t,
+}
+
+softmax_a :: proc(arr: ^Array_Dyn($T), axis: uint) -> ^Array_Dyn(T) {
 	maxima := max(arr, axis, true)
 	arr_sub := sub(arr, maxima)
 	numerator := exp(arr_sub)
 	denominator := sum(numerator, axis, true)
 	defer array_free(maxima, arr_sub, numerator, denominator)
 	return div(numerator, denominator)
+}
+
+softmax_t :: proc(t: ^Tensor($T), axis: uint) -> ^Tensor(T) {
+	axis_tensor := new_with_init([]T{T(axis)}, {1})
+	defer tensor_release(axis_tensor)
+
+	return autograd_make_op(
+		[]^Tensor(T){t, axis_tensor},
+		new_arrdata = softmax_a(t.arrdata, axis),
+		backward_fn_name = "softmax_backward",
+		backward_fn = proc(tensor: ^Tensor(T), upstream_grad: ^Array_Dyn(T)) {
+			input := tensor.deps[0]
+			if !input.requires_grad {
+				return
+			}
+
+			// Get stored axis from deps
+			axis := uint(tensor.deps[1].data[0])
+
+			// Get softmax output which we need for gradient
+			s := softmax_a(input.arrdata, axis)
+			defer array_free(s)
+
+			// grad = s * (upstream_grad - sum(s * upstream_grad))
+			s_times_upstream := mul(s, upstream_grad)
+			defer array_free(s_times_upstream)
+
+			sum_term := sum(s_times_upstream, axis, keepdims = true)
+			defer array_free(sum_term)
+
+			diff := sub(upstream_grad, sum_term)
+			defer array_free(diff)
+
+			local_grad := mul(s, diff)
+			defer array_free(local_grad)
+
+			old_grad := input.grad
+			input.grad = add(old_grad, local_grad)
+			array_free(old_grad)
+		},
+	)
 }
