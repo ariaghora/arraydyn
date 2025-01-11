@@ -354,3 +354,12 @@ exp :: proc(arr: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 log :: proc(arr: ^Array_Dyn($T)) -> ^Array_Dyn(T) {
 	return _array_unary_op(arr, #force_inline proc(x: T) -> T {return math.ln(x)})
 }
+
+softmax :: proc(arr: ^Array_Dyn($T), axis: uint) -> ^Array_Dyn(T) {
+	maxima := max(arr, axis, true)
+	arr_sub := sub(arr, maxima)
+	numerator := exp(arr_sub)
+	denominator := sum(numerator, axis, true)
+	defer array_free(maxima, arr_sub, numerator, denominator)
+	return div(numerator, denominator)
+}

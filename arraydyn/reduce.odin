@@ -4,7 +4,7 @@ import "base:builtin"
 import "core:math"
 
 @(private = "package")
-reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
+reduction_shape :: proc(shape: []uint, axis: uint, keepdims: bool) -> []uint {
 	if axis < 0 || axis >= len(shape) {
 		panic("Axis out of bounds")
 	}
@@ -20,7 +20,7 @@ reduction_shape :: proc(shape: []uint, axis: int, keepdims: bool) -> []uint {
 		new_shape := make([]uint, len(shape) - 1)
 		j := 0
 		for i in 0 ..< len(shape) {
-			if i != axis {
+			if i != int(axis) {
 				new_shape[j] = shape[i]
 				j += 1
 			}
@@ -37,7 +37,7 @@ reduce_along_axis :: proc(
 	arr: ^Array_Dyn($T),
 	reducer: proc(_: T, _: T) -> T, // Function that combines two elements into one
 	initial: T, // Starting value for reduction (e.g., 0 for sum, 1 for product)
-	axis: int, // Which dimension to reduce along
+	axis: uint, // Which dimension to reduce along
 	keepdims := false, // Whether to preserve reduced dimension as size 1
 ) -> ^Array_Dyn(T) {
 	// Get shape for result array, handling keepdims case.
@@ -69,7 +69,7 @@ reduce_along_axis :: proc(
 	//   * For outer=0: process 4 elements across each of the 3 positions in axis
 	//   * For outer=1: repeat for the second slice
 	inner_size: uint = 1
-	for i in (axis + 1) ..< len(arr.shape) {
+	for i in (axis + 1) ..< uint(len(arr.shape)) {
 		inner_size *= arr.shape[i]
 	}
 
@@ -179,11 +179,11 @@ sum_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {
 	)
 }
 
-sum_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+sum_axis_a :: proc(arr: ^Array_Dyn($T), axis: uint, keepdims := false) -> ^Array_Dyn(T) {
 	return reduce_along_axis(arr, proc(x, y: T) -> T {return x + y}, T(0), axis, keepdims)
 }
 
-sum_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
+sum_axis_t :: proc(t: ^Tensor($T), axis: uint, keepdims := false) -> ^Tensor(T) {
 	// Create tensors to store axis and keepdims values
 	axis_tensor := new_with_init([]T{T(axis)}, {1})
 	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
@@ -195,7 +195,7 @@ sum_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
 		backward_fn = proc(tensor: ^Tensor(T), grad_output: ^Array_Dyn(T)) {
 			input_tensor := tensor.deps[0]
 			// Extract cached values from deps
-			axis := int(tensor.deps[1].data[0])
+			axis := uint(tensor.deps[1].data[0])
 			keepdims := tensor.deps[2].data[0] > 0
 
 			// Create output shape for the gradient based on keepdims
@@ -215,7 +215,7 @@ sum_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
 }
 
 
-max :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+max :: proc(arr: ^Array_Dyn($T), axis: uint, keepdims := false) -> ^Array_Dyn(T) {
 	return reduce_along_axis(
 		arr,
 		proc(x, y: T) -> T {return builtin.max(x, y)},
@@ -225,7 +225,7 @@ max :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) 
 	)
 }
 
-min :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+min :: proc(arr: ^Array_Dyn($T), axis: uint, keepdims := false) -> ^Array_Dyn(T) {
 	return reduce_along_axis(
 		arr,
 		proc(x, y: T) -> T {return builtin.min(x, y)},
@@ -306,7 +306,7 @@ mean_t :: proc(t: ^Tensor($T), keepdims := false) -> ^Tensor(T) {
 		backward_fn_name = "mean_backward",
 	)
 }
-mean_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array_Dyn(T) {
+mean_axis_a :: proc(arr: ^Array_Dyn($T), axis: uint, keepdims := false) -> ^Array_Dyn(T) {
 	s := sum_axis_a(arr, axis, keepdims)
 	n := T(arr.shape[axis])
 	for i in 0 ..< len(s.data) {
@@ -315,7 +315,7 @@ mean_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims := false) -> ^Array
 	return s
 }
 
-mean_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims := false) -> ^Tensor(T) {
+mean_axis_t :: proc(t: ^Tensor($T), axis: uint, keepdims := false) -> ^Tensor(T) {
 	// Create tensors to store axis and keepdims values
 	axis_tensor := new_with_init([]T{T(axis)}, {1})
 	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})
@@ -357,7 +357,7 @@ argmax :: proc {
 }
 
 // Returns the indices of maximum values along a specified axis
-argmax_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims: bool = false) -> ^Array_Dyn(T) {
+argmax_axis_a :: proc(arr: ^Array_Dyn($T), axis: uint, keepdims: bool = false) -> ^Array_Dyn(T) {
 	if axis < 0 || axis >= len(arr.shape) {
 		panic("Axis out of bounds")
 	}
@@ -374,7 +374,7 @@ argmax_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims: bool = false) ->
 	}
 
 	inner_size: uint = 1
-	for i in (axis + 1) ..< len(arr.shape) {
+	for i in (axis + 1) ..< uint(len(arr.shape)) {
 		inner_size *= arr.shape[i]
 	}
 
@@ -427,7 +427,7 @@ argmax_axis_a :: proc(arr: ^Array_Dyn($T), axis: int, keepdims: bool = false) ->
 	return result
 }
 
-argmax_axis_t :: proc(t: ^Tensor($T), axis: int, keepdims: bool = false) -> ^Tensor(T) {
+argmax_axis_t :: proc(t: ^Tensor($T), axis: uint, keepdims: bool = false) -> ^Tensor(T) {
 	// Create tensors to store axis and keepdims values
 	axis_tensor := new_with_init([]T{T(axis)}, {1})
 	keepdims_tensor := new_with_init([]T{T(keepdims ? 1 : 0)}, {1})

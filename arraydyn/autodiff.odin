@@ -104,11 +104,11 @@ broadcast_grad_to_shape :: proc(grad_arr: ^Array_Dyn($T), target_shape: []uint) 
 	// Find dimensions that were broadcast during forward pass. We need these
 	// because gradients must be summed across broadcast dimensions to preserve
 	// the chain rule when backpropagating through broadcast operations
-	sum_axes := make([dynamic]int)
+	sum_axes := make([dynamic]uint)
 	defer delete(sum_axes)
 	for i in 0 ..< max_dims {
 		if grad_shape_padded[i] != target_shape_padded[i] && target_shape_padded[i] == 1 {
-			append(&sum_axes, i)
+			append(&sum_axes, uint(i))
 		}
 	}
 

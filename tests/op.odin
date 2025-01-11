@@ -2,6 +2,7 @@ package tests
 
 import ar "../arraydyn"
 
+import "core:fmt"
 import "core:math"
 import "core:slice"
 import "core:testing"
@@ -129,4 +130,104 @@ test_exp :: proc(t: ^testing.T) {
 	res := ar._get_strided_data(c2)
 	defer delete(res)
 	testing.expect(t, slice.equal(res, []f32{1.0, 2.718281828, 7.389056099, 20.085536923}))
+}
+
+@(test)
+test_softmax :: proc(t: ^testing.T) {
+	// Test 1D softmax
+	{
+		a := ar._new_with_init([]f32{1.0, 2.0, 3.0}, {3})
+		defer ar.array_free(a)
+		s := ar.softmax(a, 0)
+		defer ar.array_free(s)
+
+		// sum(exp(x_i)) = e^1 + e^2 + e^3
+		sum_exp := math.exp_f32(1.0) + math.exp_f32(2.0) + math.exp_f32(3.0)
+		expected := []f32 {
+			f32(math.exp_f32(1.0) / sum_exp),
+			f32(math.exp_f32(2.0) / sum_exp),
+			f32(math.exp_f32(3.0) / sum_exp),
+		}
+		for i in 0 ..< len(expected) {
+			testing.expect(
+				t,
+				abs(s.data[i] - expected[i]) < 1e-6,
+				fmt.tprintf("Expected %v, got %v", expected[i], s.data[i]),
+			)
+		}
+	}
+
+	// Test 2D softmax (along last dimension)
+	{
+		b := ar._new_with_init([]f32{1.0, 2.0, 3.0, 4.0, 5.0, 6.0}, {2, 3})
+		defer ar.array_free(b)
+		s2 := ar.softmax(b, 1)
+		defer ar.array_free(s2)
+
+		// First row: sum(exp(x_i)) = e^1 + e^2 + e^3
+		sum_exp1 := math.exp_f32(1.0) + math.exp_f32(2.0) + math.exp_f32(3.0)
+		// Second row: sum(exp(x_i)) = e^4 + e^5 + e^6
+		sum_exp2 := math.exp_f32(4.0) + math.exp_f32(5.0) + math.exp_f32(6.0)
+
+		expected2 := []f32 {
+			f32(math.exp_f32(1.0) / sum_exp1),
+			f32(math.exp_f32(2.0) / sum_exp1),
+			f32(math.exp_f32(3.0) / sum_exp1),
+			f32(math.exp_f32(4.0) / sum_exp2),
+			f32(math.exp_f32(5.0) / sum_exp2),
+			f32(math.exp_f32(6.0) / sum_exp2),
+		}
+
+		res := ar._get_strided_data(s2)
+		defer delete(res)
+		for i in 0 ..< len(expected2) {
+			testing.expect(
+				t,
+				abs(res[i] - expected2[i]) < 1e-6,
+				fmt.tprintf("Expected %v, got %v", expected2[i], res[i]),
+			)
+		}
+	}
+
+	// Test 3D softmax (along last dimension)
+	{
+		c := ar._new_with_init(
+			[]f32{1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 12.0},
+			{2, 2, 3},
+		)
+		defer ar.array_free(c)
+		s3 := ar.softmax(c, 2)
+		defer ar.array_free(s3)
+
+		// Row sums for each 3-element slice
+		sum_exp1 := math.exp_f32(1.0) + math.exp_f32(2.0) + math.exp_f32(3.0)
+		sum_exp2 := math.exp_f32(4.0) + math.exp_f32(5.0) + math.exp_f32(6.0)
+		sum_exp3 := math.exp_f32(7.0) + math.exp_f32(8.0) + math.exp_f32(9.0)
+		sum_exp4 := math.exp_f32(10.0) + math.exp_f32(11.0) + math.exp_f32(12.0)
+
+		expected3 := []f32 {
+			f32(math.exp_f32(1.0) / sum_exp1),
+			f32(math.exp_f32(2.0) / sum_exp1),
+			f32(math.exp_f32(3.0) / sum_exp1),
+			f32(math.exp_f32(4.0) / sum_exp2),
+			f32(math.exp_f32(5.0) / sum_exp2),
+			f32(math.exp_f32(6.0) / sum_exp2),
+			f32(math.exp_f32(7.0) / sum_exp3),
+			f32(math.exp_f32(8.0) / sum_exp3),
+			f32(math.exp_f32(9.0) / sum_exp3),
+			f32(math.exp_f32(10.0) / sum_exp4),
+			f32(math.exp_f32(11.0) / sum_exp4),
+			f32(math.exp_f32(12.0) / sum_exp4),
+		}
+
+		res3 := ar._get_strided_data(s3)
+		defer delete(res3)
+		for i in 0 ..< len(expected3) {
+			testing.expect(
+				t,
+				abs(res3[i] - expected3[i]) < 1e-6,
+				fmt.tprintf("Expected %v, got %v", expected3[i], res3[i]),
+			)
+		}
+	}
 }
