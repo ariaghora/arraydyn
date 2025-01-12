@@ -8,6 +8,11 @@ import "core:mem"
 import "core:slice"
 import "core:strings"
 
+Backend :: enum {
+	CPU,
+	Metal,
+}
+
 // This structure implements a high level multidimensional array container using a
 // linear array of data internally. The array is parametrized for any data type
 // and supports strided access and broadcasting. The internal representation uses
@@ -21,6 +26,7 @@ Array_Dyn :: struct($T: typeid) where intrinsics.type_is_numeric(T) {
 	strides:    []uint,
 	contiguous: bool,
 	own_data:   bool,
+	backend:    Backend,
 }
 
 // Tensor represents a multidimensional array with automatic differentiation capabilities.
@@ -56,6 +62,7 @@ _array_alloc :: proc($T: typeid, shape: []uint) -> (res: ^Array_Dyn(T)) {
 	res.strides = make([]uint, len(shape))
 	res.contiguous = true
 	res.own_data = true
+	res.backend = .CPU
 
 	// initialize shape and strides
 	copy(res.shape, shape)
